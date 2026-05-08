@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+  <title>Ranking Tool</title>
+
+  <style>
+
+    body {
+
+      background: #111;
+      color: white;
+      font-family: Arial;
+
+      padding: 30px;
+
+    }
+
+    h2 {
+
+      font-size: 40px;
+
+    }
+
+    .item {
+
+      background: #1e1e1e;
+
+      padding: 20px;
+
+      border-radius: 12px;
+
+      margin-bottom: 20px;
+
+    }
+
+    input,
+    select {
+
+      display: block;
+
+      width: 100%;
+
+      padding: 12px;
+
+      margin-top: 10px;
+
+      border-radius: 10px;
+
+      border: none;
+
+      font-size: 16px;
+
+    }
+
+    button {
+
+      padding: 14px 20px;
+
+      border: none;
+
+      border-radius: 12px;
+
+      background: #ffcc00;
+
+      color: black;
+
+      font-size: 18px;
+
+      font-weight: bold;
+
+      cursor: pointer;
+
+      margin-top: 20px;
+
+    }
+
+    button:hover {
+
+      opacity: 0.9;
+
+    }
+
+  </style>
+
+</head>
+
+<body>
+
+  <h2>🔥 Ranking Video Tool</h2>
+
+  <form id="form">
+
+    <div id="items"></div>
+
+    <button
+      type="button"
+      onclick="addItem()"
+    >
+      + Add Item
+    </button>
+
+    <br><br>
+
+    <button type="submit">
+      Render Video
+    </button>
+
+  </form>
+
+  <script>
+
+    let count = 0;
+
+    function addItem() {
+
+      const container =
+        document.getElementById("items");
+
+      const div =
+        document.createElement("div");
+
+      div.className = "item";
+
+      div.innerHTML = `
+
+        <h3>Character ${count + 1}</h3>
+
+        <input
+          type="file"
+          name="images"
+          required
+        />
+
+        <input
+          type="text"
+          name="texts"
+          placeholder="Character name"
+          required
+        />
+
+        <select name="ranks">
+
+          ${[10,9,8,7,6,5,4,3,2,1]
+            .map(r =>
+              `<option value="${r}">
+                Rank ${r}
+              </option>`
+            ).join("")}
+
+        </select>
+
+      `;
+
+      container.appendChild(div);
+
+      count++;
+
+    }
+
+    // DEFAULT ITEM
+    addItem();
+
+    document
+      .getElementById("form")
+      .onsubmit = async (e) => {
+
+        e.preventDefault();
+
+        const formData =
+          new FormData(e.target);
+
+        try {
+
+          const response =
+            await fetch("/render", {
+              method: "POST",
+              body: formData
+            });
+
+          const data =
+            await response.json();
+
+          console.log(data);
+
+          if (!data.success) {
+
+            alert(
+              "ERROR: " + data.error
+            );
+
+            return;
+
+          }
+
+          alert("✅ Render Complete!");
+
+          window.open(
+            data.url,
+            "_blank"
+          );
+
+        } catch (err) {
+
+          console.error(err);
+
+          alert("❌ Render failed");
+
+        }
+
+      };
+
+  </script>
+
+</body>
+
+</html>
