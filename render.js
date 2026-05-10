@@ -5,16 +5,25 @@ const fs = require("fs");
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 
+/**
+ * FIX WINDOWS FONT PATH
+ */
 function fixFontPath(p) {
   return p
     .replace(/\\/g, "/")
     .replace(":", "\\:");
 }
 
+/**
+ * FONT
+ */
 const FONT = fixFontPath(
   path.resolve("fonts/Montserrat-Bold.ttf")
 );
 
+/**
+ * SAFE TEXT
+ */
 function safeText(text) {
 
   if (!text) return "";
@@ -22,127 +31,349 @@ function safeText(text) {
   return text
     .replace(/\\/g, "\\\\")
     .replace(/:/g, "\\:")
-    .replace(/'/g, "\\'");
+    .replace(/'/g, "\\'")
+    .replace(/,/g, "\\,")
+    .replace(/\[/g, "\\[")
+    .replace(/\]/g, "\\]")
+    .replace(/\(/g, "\\(")
+    .replace(/\)/g, "\\)");
 }
 
+/**
+ * BUILD RANKS
+ */
+function buildRanks(start, end) {
+
+  const arr = [];
+
+  for (let i = start; i >= end; i--) {
+    arr.push(i);
+  }
+
+  return arr;
+}
+
+/**
+ * MAIN RENDER
+ */
 function render(data) {
 
   return new Promise((resolve, reject) => {
 
-    const {
-      background = "background.png",
-      items = []
-    } = data;
+    try {
 
-    const width = 1280;
-    const height = 720;
+      const {
+        background = "background.png",
+        startRank = 10,
+        endRank = 7,
+        items = []
+      } = data;
 
-    const filters = [];
+      if (!items.length) {
+        throw new Error("No items");
+      }
 
-    filters.push(
-      `[0:v]scale=${width}:${height}[bg]`
-    );
+      const width = 1280;
+      const height = 720;
 
-    let last = "[bg]";
+      const barHeight = 120;
 
-    const spacing =
-      width / items.length;
-
-    items.forEach((item, i) => {
-
-      const centerX =
-        i * spacing + spacing / 2;
-
-      const size = 320;
-
-      const x =
-        centerX - size / 2;
-
-      const y =
-        250;
-
-      const glowInput =
-        i * 2 + 1;
-
-      const charInput =
-        i * 2 + 2;
-
-      // ====================
-      // GLOW
-      // ====================
-
-      filters.push(
-        `[${glowInput}:v]scale=${size}:${size}[g${i}]`
+      const ranks = buildRanks(
+        startRank,
+        endRank
       );
 
+      /**
+       * KEEP ORIGINAL SPACING
+       */
+      const spacing =
+        width / ranks.length;
+
+      const bgPath = path.resolve(background);
+
+      if (!fs.existsSync(bgPath)) {
+        throw new Error("Background not found");
+      }
+
+      // TOTAL VIDEO DURATION
+      const duration =
+        items.length * 8 + 3;
+
+      let filters = [];
+
+      // ====================================
+      // BACKGROUND
+      // ====================================
+
       filters.push(
-        `${last}[g${i}]overlay=${x}:${y}[glow${i}]`
+        `[0:v]scale=${width}:${height}[bg]`
       );
 
-      // ====================
-      // CHARACTER
-      // ====================
+      let last = "[bg]";
+
+      // ====================================
+      // DARK BAR
+      // ====================================
 
       filters.push(
-        `[${charInput}:v]scale=${size}:${size}[c${i}]`
+        `${last}drawbox=` +
+        `x=0:` +
+        `y=${height - barHeight}:` +
+        `w=${width}:` +
+        `h=${barHeight}:` +
+        `color=black@0.85:` +
+        `t=fill[bar]`
       );
 
-      filters.push(
-        `[glow${i}][c${i}]overlay=${x}:${y}[char${i}]`
-      );
+      last = "[bar]";
 
-      // ====================
-      // TEXT
-      // ====================
+      // ====================================
+      // RANK LABEL
+      // ====================================
 
       filters.push(
-        `[char${i}]drawtext=` +
-        `text='${safeText(item.text)}':` +
+        `${last}drawtext=` +
+        `text='RANK':` +
         `fontfile='${FONT}':` +
-        `x=${centerX}-text_w/2:` +
-        `y=${y - 40}:` +
-        `fontsize=34:` +
+        `x=40:` +
+        `y=${height - 82}:` +
+        `fontsize=64:` +
         `fontcolor=white:` +
-        `borderw=4:` +
+        `borderw=2:` +
         `bordercolor=black` +
-        `[txt${i}]`
+        `[label]`
       );
 
-      last = `[txt${i}]`;
+      last = "[label]";
 
-    });
+      // ====================================
+      // RANK COLUMNS
+      // ====================================
 
-    const output =
-      `output_${Date.now()}.mp4`;
+      ranks.forEach((rank, i) => {
 
-    let cmd = ffmpeg()
-      .input(background)
-      .inputOptions(["-loop 1"]);
+        /**
+         * KEEP ORIGINAL POSITION
+         */
+        const centerX = Math.floor(
+          i * spacing + spacing / 2
+        );
 
-    // glow + silhouette
-    items.forEach((item) => {
+        const line = `[line${i}]`;
+        const num = `[num${i}]`;
 
-      cmd = cmd.input(item.glow);
-      cmd = cmd.input(item.image);
+        // vertical line
+        filters.push(
+          `${last}drawbox=` +
+          `x=${centerX}:` +
+          `y=0:` +
+          `w=4:` +
+          `h=${height - barHeight}:` +
+          `color=black:` +
+          `t=fill${line}`
+        );
 
-    });
+        // rank number
+        filters.push(
+          `${line}drawtext=` +
+          `text='${rank}':` +
+          `fontfile='${FONT}':` +
+          `x=${centerX}-text_w/2:` +
+          `y=${height - 88}:` +
+          `fontsize=64:` +
+          `fontcolor=white:` +
+          `borderw=3:` +
+          `bordercolor=black` +
+          `${num}`
+        );
 
-    cmd
-      .complexFilter(filters)
-      .outputOptions([
-        "-map", last,
-        "-pix_fmt", "yuv420p",
-        "-t", "10"
-      ])
-      .on("end", () => {
+        last = num;
 
-        resolve({
-          url: output
-        });
+      });
 
-      })
-      .on("error", reject)
-      .save(output);
+      // ====================================
+      // ITEMS
+      // ====================================
+
+      items.forEach((item, i) => {
+
+        /**
+         * KEEP ORIGINAL POSITION
+         */
+        const centerX = Math.floor(
+          i * spacing + spacing / 2
+        );
+
+        /**
+         * IMAGE SIZE
+         */
+        const imageSize = 260;
+
+        const finalX =
+          centerX - imageSize / 2;
+
+        /**
+         * LOWER IMAGE
+         */
+        const finalY =
+          height - barHeight - 250;
+
+        /**
+         * SLIDE START
+         */
+        const startY =
+          finalY + 120;
+
+        // =================================
+        // TIMELINE
+        // =================================
+
+        const blockStart = i * 8;
+
+        const imageStart = blockStart;
+
+        const imageAnimEnd =
+          imageStart + 0.5;
+
+        // TEXT STARTS AFTER IMAGE
+        const textStart =
+          imageStart + 3;
+
+        // TEXT EFFECT FOR 5S
+        const textEnd =
+          textStart + 5;
+
+        const img = `[img${i}]`;
+        const txt = `[txt${i}]`;
+
+        // =================================
+        // SCALE IMAGE
+        // =================================
+
+        filters.push(
+          `[${i + 1}:v]scale=${imageSize}:${imageSize}[i${i}]`
+        );
+
+        // =================================
+        // IMAGE SLIDE UP
+        // =================================
+
+        filters.push(
+          `${last}[i${i}]overlay=` +
+
+          `${finalX}:` +
+
+          `y='if(lt(t,${imageStart}),${startY},if(lt(t,${imageAnimEnd}),${startY}-(t-${imageStart})*240,${finalY}))':` +
+
+          `enable='gte(t,${imageStart})'` +
+
+          `${img}`
+        );
+
+        // =================================
+        // TEXT EFFECT
+        // =================================
+
+        filters.push(
+          `${img}drawtext=` +
+
+          `text='${safeText(item.text)}':` +
+
+          `fontfile='${FONT}':` +
+
+          // CENTER TEXT
+          `x=${centerX}-text_w/2:` +
+
+          // FLOATING MOTION
+          `y='${finalY - 30}+sin((t-${textStart})*3)*8':` +
+
+          // FONT SIZE
+          `fontsize=30:` +
+
+          // TEXT STYLE
+          `fontcolor=black:` +
+
+          `borderw=5:` +
+          `bordercolor=white@0.8:` +
+
+          `shadowx=0:` +
+          `shadowy=0:` +
+          `shadowcolor=black@0.8:` +
+
+          // FADE IN
+          `alpha='if(lt(t,${textStart}),0,if(lt(t,${textStart + 0.5}),(t-${textStart})/0.5,1))':` +
+
+          `enable='between(t,${textStart},${textEnd})'` +
+
+          `${txt}`
+        );
+
+        last = txt;
+
+      });
+
+      // ====================================
+      // OUTPUT
+      // ====================================
+
+      const output =
+        `output_${Date.now()}.mp4`;
+
+      let cmd = ffmpeg()
+        .input(bgPath)
+        .inputOptions(["-loop 1"]);
+
+      items.forEach((item) => {
+
+        cmd = cmd.input(
+          path.resolve(item.image)
+        );
+
+      });
+
+      cmd
+        .complexFilter(filters)
+
+        .outputOptions([
+          "-map", last,
+          "-pix_fmt", "yuv420p",
+          "-r", "30",
+          "-t", duration
+        ])
+
+        .on("start", (cmdLine) => {
+
+          console.log("\nFFmpeg:\n");
+          console.log(cmdLine);
+          console.log("\n");
+
+        })
+
+        .on("end", () => {
+
+          console.log("DONE:", output);
+
+          resolve({
+            url: output
+          });
+
+        })
+
+        .on("error", (err) => {
+
+          console.error("ERROR:", err);
+
+          reject(err);
+
+        })
+
+        .save(output);
+
+    } catch (err) {
+
+      reject(err);
+
+    }
 
   });
 

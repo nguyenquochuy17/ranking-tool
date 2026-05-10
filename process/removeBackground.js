@@ -1,81 +1,70 @@
+// processed/removeBackground.js
 const axios = require("axios");
-const fs = require("fs");
+const fs = require("fs");           // Main fs for createReadStream
+const fsPromises = require("fs").promises;  // For async writeFile
 const path = require("path");
 const FormData = require("form-data");
 const sharp = require("sharp");
 
 async function removeBackground(imagePath) {
+  if (!imagePath) throw new Error("Image path is required");
 
-  // ====================================
-  // REMOVE BACKGROUND
-  // ====================================
+  try {
+    const formData = new FormData();
+    formData.append("image_file", fs.createReadStream(imagePath));
+    formData.append("size", "auto");
+    formData.append("type", "person");
 
-  const formData = new FormData();
+    const apiKey = process.env.REMOVE_BG_API_KEY;
 
-  formData.append(
-    "image_file",
-    fs.createReadStream(imagePath)
-  );
-
-  formData.append(
-    "size",
-    "auto"
-  );
-
-  const removedPath = path.join(
-    "uploads",
-    `removed_${Date.now()}.png`
-  );
-
-  const response = await axios({
-
-    method: "post",
-
-    url:
-      "https://api.remove.bg/v1.0/removebg",
-
-    data: formData,
-
-    responseType: "arraybuffer",
-
-    headers: {
-
-      ...formData.getHeaders(),
-
-      "X-Api-Key":
-        process.env.REMOVE_BG_API_KEY
-
+    if (!apiKey) {
+      throw new Error("REMOVE_BG_API_KEY is missing in .env file!");
     }
 
-  });
+    const response = await axios({
+      method: "post",
+      url: "https://api.remove.bg/v1.0/removebg",
+      data: formData,
+      responseType: "arraybuffer",
+      headers: {
+        ...formData.getHeaders(),
+        "X-Api-Key": apiKey,
+      },
+      timeout: 20000,
+    });
 
-  fs.writeFileSync(
-    removedPath,
-    response.data
-  );
+    const removedPath = path.join("uploads", `removed_${Date.now()}.png`);
+    await fsPromises.writeFile(removedPath, response.data);
 
-  // ====================================
-  // CREATE BLACK SILHOUETTE
-  // ====================================
+    // Create black silhouette
+    const silhouettePath = path.join("uploads", `silhouette_${Date.now()}.png`);
 
-  const outputPath = path.join(
-    "uploads",
-    `shadow_${Date.now()}.png`
-  );
+    await sharp(removedPath)
+      .extractChannel("alpha")
+      .threshold(1)
+      .negate()
+      .png()
+      .toFile(silhouettePath);
 
-  await sharp(removedPath)
+    console.log(`✅ Background removed: ${silhouettePath}`);
 
-    .grayscale()
+    return {
+      silhouette: silhouettePath,
+      transparent: removedPath
+    };
 
-    .linear(0, -255)
+  } catch (err) {
+    console.error("Remove.bg Error:", err.message);
+    
+    if (err.response?.status === 403) {
+      throw new Error("Invalid Remove.bg API Key");
+    }
+    if (err.response?.status === 429) {
+      throw new Error("Remove.bg rate limit exceeded");
+    }
 
-    .threshold(1)
-
-    .png()
-
-    .toFile(outputPath);
-
-  return outputPath;
+    throw new Error("Background removal failed: " + err.message);
+  }
 }
 
 module.exports = removeBackground;

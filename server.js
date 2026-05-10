@@ -3,7 +3,7 @@ const multer = require("multer");
 const path = require("path");
 const render = require("./render");
 const processImage = require("./processImage");
-
+require("dotenv").config();
 const app = express();
 
 app.use(express.static(__dirname));
@@ -55,10 +55,10 @@ app.post(
             files[i].path
           );
 
-        processedItems.push({
-          image: processedImage.image,
-          text: texts[i]
-        });
+      processedItems.push({
+  image: processedImage,
+  text: texts[i]
+});
 
       }
 

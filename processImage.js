@@ -7,28 +7,28 @@ const sharp = require("sharp");
 const API_KEY =
   "MDKb8EMcQuZxsYVfghKBMC28";
 
-async function processImage(imagePath) {
+async function processImage(inputPath) {
 
   // =========================
   // REMOVE BACKGROUND
   // =========================
 
-  const formData = new FormData();
+  const form = new FormData();
 
-  formData.append(
+  form.append(
     "image_file",
-    fs.createReadStream(imagePath)
+    fs.createReadStream(inputPath)
   );
 
-  formData.append("size", "auto");
+  form.append("size", "auto");
 
   const response = await axios({
     method: "post",
     url: "https://api.remove.bg/v1.0/removebg",
-    data: formData,
+    data: form,
     responseType: "arraybuffer",
     headers: {
-      ...formData.getHeaders(),
+      ...form.getHeaders(),
       "X-Api-Key": API_KEY
     }
   });
@@ -37,59 +37,23 @@ async function processImage(imagePath) {
   // OUTPUT PATH
   // =========================
 
-  const outputPath =
-    path.join(
-      "uploads",
-      `processed_${Date.now()}.png`
-    );
-
-  // =========================
-  // CREATE BLACK SILHOUETTE
-  // =========================
-
-  const image = sharp(
-    Buffer.from(response.data)
+  const outputPath = path.join(
+    __dirname,
+    "uploads",
+    `processed_${Date.now()}.png`
   );
 
-  const metadata =
-    await image.metadata();
+  // =========================
+  // CREATE BLACK CHARACTER
+  // =========================
 
-  const width = metadata.width;
-  const height = metadata.height;
-
-  // transparent canvas
-  const blackLayer = await sharp({
-    create: {
-      width,
-      height,
-      channels: 4,
-      background: {
-        r: 0,
-        g: 0,
-        b: 0,
-        alpha: 1
-      }
-    }
-  })
-    .png()
-    .toBuffer();
-
-  // use alpha from original cutout
-  await sharp(blackLayer)
-    .joinChannel(
-      await image.extractChannel("alpha").toBuffer()
-    )
+  await sharp(Buffer.from(response.data))
+    .grayscale()
+    .linear(0, -255)
     .png()
     .toFile(outputPath);
 
-  // =========================
-  // IMPORTANT
-  // =========================
-
-  return {
-    image: outputPath
-  };
-
+  return outputPath;
 }
 
 module.exports = processImage;
