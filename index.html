@@ -88,7 +88,7 @@
 
 <body>
 
-  <h2>🔥 Ranking Video Tool</h2>
+  <h2>ðŸ”¥ Ranking Video Tool</h2>
 
   <form id="form">
 
@@ -101,11 +101,20 @@
       + Add Item
     </button>
 
+    <button
+      type="button"
+      onclick="addItems(10)"
+    >
+      + Add 10 Items
+    </button>
+
     <br><br>
 
-    <button type="submit">
+    <button type="submit" id="renderBtn">
       Render Video
     </button>
+
+    <p id="status"></p>
 
   </form>
 
@@ -113,7 +122,7 @@
 
     let count = 0;
 
-    function addItem() {
+    function addItem(rank) {
 
       const container =
         document.getElementById("items");
@@ -123,28 +132,29 @@
 
       div.className = "item";
 
+      const defaultRank = rank ?? Math.max(1, 11 - (count + 1));
+
       div.innerHTML = `
 
         <h3>Character ${count + 1}</h3>
 
         <input
           type="file"
-          name="images"
+          accept="image/*"
           required
         />
 
         <input
           type="text"
-          name="texts"
           placeholder="Character name"
           required
         />
 
-        <select name="ranks">
+        <select class="rank-select">
 
           ${[10,9,8,7,6,5,4,3,2,1]
             .map(r =>
-              `<option value="${r}">
+              `<option value="${r}" ${r === defaultRank ? "selected" : ""}>
                 Rank ${r}
               </option>`
             ).join("")}
@@ -159,7 +169,12 @@
 
     }
 
-    // DEFAULT ITEM
+    function addItems(amount) {
+      for (let i = 0; i < amount; i++) {
+        addItem(10 - i);
+      }
+    }
+
     addItem();
 
     document
@@ -168,8 +183,44 @@
 
         e.preventDefault();
 
-        const formData =
-          new FormData(e.target);
+        const itemDivs =
+          document.querySelectorAll(".item");
+
+        const formData = new FormData();
+        const items = [];
+
+        itemDivs.forEach((div) => {
+          const fileInput =
+            div.querySelector('input[type="file"]');
+          const textInput =
+            div.querySelector('input[type="text"]');
+          const rankSelect =
+            div.querySelector(".rank-select");
+
+          if (!fileInput.files[0]) return;
+
+          formData.append("images", fileInput.files[0]);
+          items.push({
+            name: textInput.value.trim() || "Unnamed",
+            rank: parseInt(rankSelect.value, 10),
+          });
+        });
+
+        if (!items.length) {
+          alert("Add at least one image");
+          return;
+        }
+
+        formData.append("items", JSON.stringify(items));
+
+        const renderBtn =
+          document.getElementById("renderBtn");
+        const status =
+          document.getElementById("status");
+
+        renderBtn.disabled = true;
+        status.textContent =
+          `Rendering ${items.length} ranks...`;
 
         try {
 
@@ -184,20 +235,24 @@
 
           console.log(data);
 
-          if (!data.success) {
+          if (!response.ok || !data.success) {
+
+            status.textContent =
+              "Render failed.";
 
             alert(
-              "ERROR: " + data.error
+              "ERROR: " + (data.error || "Unknown error")
             );
 
             return;
 
           }
 
-          alert("✅ Render Complete!");
+          status.textContent = "Render complete!";
+          alert("Render complete!");
 
           window.open(
-            data.url,
+            data.url || ("/" + data.video),
             "_blank"
           );
 
@@ -205,8 +260,13 @@
 
           console.error(err);
 
-          alert("❌ Render failed");
+          status.textContent =
+            "Render failed â€” check server is running.";
 
+          alert("Render failed: " + err.message);
+
+        } finally {
+          renderBtn.disabled = false;
         }
 
       };
