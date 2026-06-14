@@ -134,7 +134,9 @@ function render(data, output) {
       });
 
       // ── Scale images ────────────────────────────────────────────────
-      filters.push(scalePad(`${cutInput}:v`, `cut${idx}`, IMG_W, IMG_H));
+      filters.push(scalePad(`${cutInput}:v`, `cutScaled${idx}`, IMG_W, IMG_H));
+      // Turn the cutout into a solid black silhouette (keeps alpha/shape, zeroes RGB)
+      filters.push(`[cutScaled${idx}]lutrgb=r=0:g=0:b=0[cut${idx}]`);
       filters.push(scalePad(`${origInput}:v`, `orig${idx}`, ORIG_W, ORIG_H));
 
       // ── ANIMATION: no-bg slides UP from bar into position ───────────
