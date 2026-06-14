@@ -1,192 +1,185 @@
 const ffmpeg = require("fluent-ffmpeg");
+const ffmpegStatic = require("ffmpeg-static");
 const path = require("path");
+const fs = require("fs");
+
+ffmpeg.setFfmpegPath(ffmpegStatic);
+
+function scalePad(inputTag, outputTag, W, H, bgColor = "black@0") {
+  return (
+    `[${inputTag}]scale=w=${W}:h=${H}:force_original_aspect_ratio=decrease,` +
+    `scale=trunc(iw/2)*2:trunc(ih/2)*2,` +
+    `pad=${W}:${H}:floor((${W}-iw)/2):floor((${H}-ih)/2):${bgColor}[${outputTag}]`
+  );
+}
 
 function render(data, output) {
-
   return new Promise((resolve, reject) => {
 
-    /*
-    VALIDATE
-    */
-    if (!Array.isArray(data)) {
-      reject(new Error("data must be array"));
-      return;
+    if (!Array.isArray(data) || data.length === 0) {
+      return reject(new Error("data must be a non-empty array"));
     }
 
+    const fontPath = (() => {
+      const candidates = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/System/Library/Fonts/Helvetica.ttc",
+        "C:/Windows/Fonts/arialbd.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+      ];
+      return candidates.find(p => fs.existsSync(p)) || null;
+    })();
+
+    const fa = fontPath ? `:fontfile='${fontPath}'` : "";
+
+    const outputDir = path.join(__dirname, "output");
+    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+
+    const sorted = [...data].sort((a, b) => b.rank - a.rank);
+    const n = sorted.length;
+
+    const W = 1280;
+    const H = 720;
+
+    // Bottom bar
+    const BAR_H = 100;
+    const BAR_Y = H - BAR_H;
+    const LABEL_W = 180;
+    const slotW = (W - LABEL_W) / n;
+    const FONT_SIZE = 52;
+    const textY = BAR_Y + Math.round((BAR_H - FONT_SIZE) / 2) - 4;
+
+    // No-bg image
+    const IMG_W = Math.max(80, Math.min(260, Math.floor(slotW * 0.9)));
+    const IMG_H = Math.round(IMG_W * 1.35);
+
+    // 20px gap between no-bg image bottom and the bar top
+    const IMG_TOP_Y = BAR_Y - IMG_H - (-60);
+
+    // Original image stacks above no-bg
+    const ORIG_W = Math.round(IMG_W * 0.85);
+    const ORIG_H = Math.round(IMG_H * 0.85);
+    const ORIG_TOP_Y = IMG_TOP_Y - ORIG_H - (-10);
+
+    // Text label 40px above the top of the no-bg image
+    const TEXT_FONT = Math.max(16, Math.min(26, Math.floor(IMG_W * 0.12)));
+    const TEXT_Y = IMG_TOP_Y - TEXT_FONT - (-20);
+
+    const SEG = 15;
+    const totalDuration = n * SEG;
+
     const command = ffmpeg();
+    command
+      .input(path.join(__dirname, "background.png"))
+      .inputOptions(["-loop", "1"]);
 
-    /*
-    WINDOWS FFMPEG FONT PATH
-    */
-    const fontPath =
-      "D:/RankingTool/ranking-tool/fonts/Montserrat-Bold.ttf";
-
-    /*
-    BACKGROUND
-    */
-    command.input(path.join(__dirname, "background.png"));
-
-    /*
-    ADD IMAGES
-    */
-    data.forEach((item) => {
-
-      if (!item.processedImage) return;
-      if (!item.originalImage) return;
-
+    sorted.forEach(item => {
       command.input(item.processedImage);
       command.input(item.originalImage);
-
     });
 
     const filters = [];
+    filters.push(`[0:v]scale=${W}:${H}[bg]`);
 
-    /*
-    BG
-    */
-    filters.push(
-      `[0:v]scale=1280:720[bg]`
-    );
+    let prev = "bg";
 
-    /*
-    BOTTOM BAR
-    */
-    filters.push(
-      `[bg]drawbox=x=0:y=600:w=1280:h=120:color=black@0.85:t=fill[bar]`
-    );
+    sorted.forEach((item, idx) => {
+      const cutInput  = idx * 2 + 1;
+      const origInput = idx * 2 + 2;
 
-    /*
-    TITLE
-    */
-    filters.push(
-      `[bar]drawtext=text="RANK":fontfile="${fontPath}":x=40:y=638:fontsize=64:fontcolor=white:borderw=2:bordercolor=black[base]`
-    );
+      const tStart   = idx * SEG;
+      const tEnd     = totalDuration;
+      const tTextIn  = tStart + 5;
+      const tTextOut = tStart + 10;
+      const tOrigIn  = tStart + 10;
+      const tOrigOut = tStart + 15;
 
-    let previous = "base";
+      const rank = item.rank;
+      const safeName = item.name
+        .substring(0, 28)
+        .replace(/\\/g, "\\\\")
+        .replace(/'/g, "\\'")
+        .replace(/:/g, "\\:");
 
-    /*
-    BOTTOM BAR LAYOUT
-    "RANK" label takes the left side, the remaining width
-    is divided equally between all rank numbers.
-    */
-    const barWidth = 1280;
-    const labelWidth = 240; // space reserved for "RANK" text
-    const slotWidth = (barWidth - labelWidth) / data.length;
+      const slotCenterX = Math.round(LABEL_W + slotW * idx + slotW / 2);
+      const imgX  = Math.round(slotCenterX - IMG_W / 2);
+      const origX = Math.round(slotCenterX - ORIG_W / 2);
 
-    data.forEach((item, index) => {
-
-      const xCenter = 640;
-      const imageX = 510;
-
-      const start = index * 13;
-
-      /*
-      CENTER OF THIS RANK'S SLOT IN THE BOTTOM BAR
-      */
-      const slotCenter = Math.round(labelWidth + slotWidth * index + slotWidth / 2);
-
-      /*
-      INPUT INDEXES
-      */
-      const processedInput = index * 2 + 1;
-      const originalInput = index * 2 + 2;
-
-      /*
-      CENTER LINE
-      */
+      // Bottom bar
       filters.push(
-        `[${previous}]drawbox=x=${xCenter}:y=0:w=4:h=600:color=black:t=fill[line${index}]`
+        `[${prev}]drawbox=x=0:y=${BAR_Y}:w=${W}:h=${BAR_H}:color=black@0.85:t=fill[bar${idx}]`
+      );
+      filters.push(
+        `[bar${idx}]drawtext=text='RANK'${fa}:x=20:y=${textY}:fontsize=${FONT_SIZE}:fontcolor=white:borderw=2:bordercolor=black[rl${idx}]`
       );
 
-      /*
-      NUMBER
-      */
-      filters.push(
-        `[line${index}]drawtext=text="${item.rank ?? 10 - index}":fontfile="${fontPath}":x=${slotCenter}-text_w/2:y=632:fontsize=64:fontcolor=white:borderw=3:bordercolor=black[num${index}]`
-      );
-
-      /*
-      REMOVE WHITE BACKGROUND
-      */
-      filters.push(
-        `[${processedInput}:v]format=rgba,colorkey=0xFFFFFF:0.35:0.15,scale=260:260[cut${index}]`
-      );
-
-      /*
-      SHOW CUT IMAGE
-      */
-      filters.push(
-        `[num${index}][cut${index}]overlay=x=${imageX}:y=350:enable="between(t,${start},${start + 13})"[img${index}]`
-      );
-
-      /*
-      TEXT
-      */
-      filters.push(
-        `[img${index}]drawtext=text="${item.name.replace(/[\\"']/g, c => c === '"' ? '\\"' : "\\'")}":fontfile="${fontPath}":x=${xCenter}-text_w/2:y=295:fontsize=30:fontcolor=black:borderw=5:bordercolor=white:enable="between(t,${start},${start + 13})"[text${index}]`
-      );
-
-      /*
-      ORIGINAL IMAGE
-      */
-      filters.push(
-        `[${originalInput}:v]scale=280:280[orig${index}]`
-      );
-
-      /*
-      SHOW ORIGINAL IMAGE
-      ABOVE TEXT
-      */
-      filters.push(
-        `[text${index}][orig${index}]overlay=x=${xCenter - 140}:y=20:enable="between(t,${start + 8},${start + 13})"[final${index}]`
-      );
-
-      previous = `final${index}`;
-
-    });
-
-    /*
-    FINAL FILTER
-    */
-    const filterComplex = filters.join(";");
-
-    console.log("\nFFmpeg:\n");
-    console.log(filterComplex);
-
-    /*
-    OUTPUT
-    */
-    command
-      .inputOptions([
-        "-loop 1"
-      ])
-
-      .outputOptions([
-        "-filter_complex", filterComplex,
-        "-map", `[${previous}]`,
-        "-pix_fmt", "yuv420p",
-        "-r", "30",
-        "-t", String(data.length * 13)
-      ])
-
-      .save(output)
-
-      .on("end", () => {
-
-        console.log("DONE:", output);
-        resolve(output);
-
-      })
-
-      .on("error", (err) => {
-
-        console.log("FFMPEG ERROR:", err.message);
-        reject(err);
-
+      let pf = `rl${idx}`;
+      sorted.forEach((other, oi) => {
+        const nx = Math.round(LABEL_W + slotW * oi + slotW / 2);
+        const divTag = `dv${idx}_${oi}`;
+        filters.push(
+          `[${pf}]drawbox=x=${Math.round(LABEL_W + slotW * oi)}:y=${BAR_Y}:w=2:h=${BAR_H}:color=white@0.3:t=fill[${divTag}]`
+        );
+        const numTag = `nm${idx}_${oi}`;
+        filters.push(
+          `[${divTag}]drawtext=text='${other.rank}'${fa}:x=${nx}-text_w/2:y=${textY}:fontsize=${FONT_SIZE}:fontcolor=white:borderw=2:bordercolor=black[${numTag}]`
+        );
+        pf = numTag;
       });
 
-  });
+      // Scale images safely
+      filters.push(scalePad(`${cutInput}:v`, `cut${idx}`, IMG_W, IMG_H));
+      filters.push(scalePad(`${origInput}:v`, `orig${idx}`, ORIG_W, ORIG_H));
 
+      // No-bg: appears at tStart, stays until end
+      filters.push(
+        `[${pf}][cut${idx}]overlay=x=${imgX}:y=${IMG_TOP_Y}:enable='between(t,${tStart},${tEnd})'[co${idx}]`
+      );
+
+      // Text: +5s to +10s
+      filters.push(
+        `[co${idx}]drawtext=text='${safeName}'${fa}:` +
+        `x=${slotCenterX}-text_w/2:y=${TEXT_Y}:` +
+        `fontsize=${TEXT_FONT}:fontcolor=white:borderw=2:bordercolor=black:` +
+        `enable='between(t,${tTextIn},${tTextOut})'[to${idx}]`
+      );
+
+      // Original: appears on top of no-bg at +10s, gone at +15s
+      filters.push(
+        `[to${idx}][orig${idx}]overlay=x=${origX}:y=${ORIG_TOP_Y}:enable='between(t,${tOrigIn},${tOrigOut})'[oo${idx}]`
+      );
+
+      prev = `oo${idx}`;
+    });
+
+    const filterComplex = filters.join(";");
+
+    console.log("\n[render] Starting ffmpeg...");
+
+    command
+      .complexFilter(filterComplex)
+      .outputOptions([
+        `-map [${prev}]`,
+        "-pix_fmt yuv420p",
+        "-r 30",
+        "-t", String(totalDuration),
+        "-c:v libx264",
+        "-preset fast",
+        "-movflags +faststart",
+      ])
+      .save(output)
+      .on("start", cmd => console.log("[ffmpeg] cmd:", cmd.substring(0, 300) + "..."))
+      .on("progress", p => p.percent && process.stdout.write(`\r[ffmpeg] ${Math.round(p.percent)}%`))
+      .on("end", () => {
+        console.log("\n[render] Done:", output);
+        resolve(output);
+      })
+      .on("error", (err, stdout, stderr) => {
+        console.error("\n[ffmpeg] ERROR:", err.message);
+        console.error("[ffmpeg] stderr:", stderr);
+        reject(err);
+      });
+  });
 }
 
 module.exports = render;
