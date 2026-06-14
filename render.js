@@ -102,7 +102,8 @@ function render(data, output) {
 
       const rank = item.rank;
       const safeName = item.name
-        .substring(0, 28)
+        .substring(0, 60)
+        .replace(/\\n/g, "\n")   // convert literal "\n" typed by user into a real line break
         .replace(/\\/g, "\\\\")
         .replace(/'/g, "\\'")
         .replace(/:/g, "\\:");
