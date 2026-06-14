@@ -119,7 +119,18 @@ function render(data, output) {
         `[bar${idx}]drawtext=text='RANK'${fa}:x=20:y=${textY}:fontsize=${FONT_SIZE}:fontcolor=white:borderw=2:bordercolor=black[rl${idx}]`
       );
 
-      let pf = `rl${idx}`;
+      // Black box above the "RANK" label, same width as the label column,
+      // lined up with the row where the character images sit
+      filters.push(
+        `[rl${idx}]drawbox=x=0:y=${IMG_TOP_Y - 60 -160}:w=${LABEL_W}:h=${IMG_H + 160}:color=black@0.85:t=fill[rankBox${idx}]`
+      );
+
+      // Border line between the bottom bar and the black box above it
+      filters.push(
+        `[rankBox${idx}]drawbox=x=0:y=${BAR_Y}:w=${LABEL_W}:h=2:color=white@0.3:t=fill[rankBoxBorder${idx}]`
+      );
+
+      let pf = `rankBoxBorder${idx}`;
       sorted.forEach((other, oi) => {
         const nx = Math.round(LABEL_W + slotW * oi + slotW / 2);
         const divTag = `dv${idx}_${oi}`;
