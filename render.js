@@ -53,17 +53,19 @@ function render(data, output) {
     const IMG_W = Math.max(80, Math.min(260, Math.floor(slotW * 0.9)));
     const IMG_H = Math.round(IMG_W * 1.35);
 
-    // 20px gap between no-bg image bottom and the bar top
     const IMG_TOP_Y = BAR_Y - IMG_H - (-60);
 
-    // Original image stacks above no-bg
+    // Original image
     const ORIG_W = Math.round(IMG_W * 0.85);
     const ORIG_H = Math.round(IMG_H * 0.85);
     const ORIG_TOP_Y = IMG_TOP_Y - ORIG_H - (-10);
 
-    // Text label 40px above the top of the no-bg image
+    // Text
     const TEXT_FONT = Math.max(16, Math.min(26, Math.floor(IMG_W * 0.12)));
     const TEXT_Y = IMG_TOP_Y - TEXT_FONT - (-20);
+
+    // Animation duration in seconds (how long the slide/fade takes)
+    const ANIM_DUR = 0.5;
 
     const SEG = 15;
     const totalDuration = n * SEG;
@@ -94,6 +96,10 @@ function render(data, output) {
       const tOrigIn  = tStart + 10;
       const tOrigOut = tStart + 15;
 
+      // Animation end times
+      const tCutAnimEnd  = tStart + ANIM_DUR;
+      const tOrigAnimEnd = tOrigIn + ANIM_DUR;
+
       const rank = item.rank;
       const safeName = item.name
         .substring(0, 28)
@@ -105,7 +111,7 @@ function render(data, output) {
       const imgX  = Math.round(slotCenterX - IMG_W / 2);
       const origX = Math.round(slotCenterX - ORIG_W / 2);
 
-      // Bottom bar
+      // ── Bottom bar ──────────────────────────────────────────────────
       filters.push(
         `[${prev}]drawbox=x=0:y=${BAR_Y}:w=${W}:h=${BAR_H}:color=black@0.85:t=fill[bar${idx}]`
       );
@@ -127,26 +133,52 @@ function render(data, output) {
         pf = numTag;
       });
 
-      // Scale images safely
+      // ── Scale images ────────────────────────────────────────────────
       filters.push(scalePad(`${cutInput}:v`, `cut${idx}`, IMG_W, IMG_H));
       filters.push(scalePad(`${origInput}:v`, `orig${idx}`, ORIG_W, ORIG_H));
 
-      // No-bg: appears at tStart, stays until end
+      // ── ANIMATION: no-bg slides UP from bar into position ───────────
+      // Starts at BAR_Y (behind the bar), eases up to IMG_TOP_Y over ANIM_DUR seconds
+      // y = BAR_Y - (BAR_Y - IMG_TOP_Y) * progress   where progress = (t-tStart)/ANIM_DUR clamped 0-1
+      const slideDistance = BAR_Y - IMG_TOP_Y;
+      const cutYExpr =
+        `if(lt(t,${tStart}),${H},` +                                         // hidden before segment
+        `if(lt(t,${tCutAnimEnd}),` +
+          `${BAR_Y}-${slideDistance}*((t-${tStart})/${ANIM_DUR}),` +         // sliding up
+          `${IMG_TOP_Y}))`;                                                    // settled
+
       filters.push(
-        `[${pf}][cut${idx}]overlay=x=${imgX}:y=${IMG_TOP_Y}:enable='between(t,${tStart},${tEnd})'[co${idx}]`
+        `[${pf}][cut${idx}]overlay=x=${imgX}:y='${cutYExpr}':enable='between(t,${tStart},${tEnd})'[co${idx}]`
       );
 
-      // Text: +5s to +10s
+      // ── ANIMATION: text fades in at tTextIn, fades out at tTextOut ──
+      // ffmpeg drawtext alpha expression: fade in over ANIM_DUR, fade out over ANIM_DUR
+      const textAlpha =
+        `if(lt(t,${tTextIn}),0,` +
+        `if(lt(t,${tTextIn + ANIM_DUR}),(t-${tTextIn})/${ANIM_DUR},` +       // fade in
+        `if(lt(t,${tTextOut - ANIM_DUR}),1,` +
+        `if(lt(t,${tTextOut}),(${tTextOut}-t)/${ANIM_DUR},0))))`;             // fade out
+
       filters.push(
         `[co${idx}]drawtext=text='${safeName}'${fa}:` +
         `x=${slotCenterX}-text_w/2:y=${TEXT_Y}:` +
         `fontsize=${TEXT_FONT}:fontcolor=white:borderw=2:bordercolor=black:` +
+        `alpha='${textAlpha}':` +
         `enable='between(t,${tTextIn},${tTextOut})'[to${idx}]`
       );
 
-      // Original: appears on top of no-bg at +10s, gone at +15s
+      // ── ANIMATION: original image slides DOWN from above ─────────────
+      // Starts ORIG_H px above its final position, slides down over ANIM_DUR
+      const origStartY = ORIG_TOP_Y - ORIG_H;   // starts above
+      const origSlide  = ORIG_TOP_Y - origStartY; // distance to travel down
+      const origYExpr =
+        `if(lt(t,${tOrigIn}),${-ORIG_H},` +                                  // hidden above canvas
+        `if(lt(t,${tOrigAnimEnd}),` +
+          `${origStartY}+${origSlide}*((t-${tOrigIn})/${ANIM_DUR}),` +       // sliding down
+          `${ORIG_TOP_Y}))`;                                                   // settled
+
       filters.push(
-        `[to${idx}][orig${idx}]overlay=x=${origX}:y=${ORIG_TOP_Y}:enable='between(t,${tOrigIn},${tOrigOut})'[oo${idx}]`
+        `[to${idx}][orig${idx}]overlay=x=${origX}:y='${origYExpr}':enable='between(t,${tOrigIn},${tOrigOut})'[oo${idx}]`
       );
 
       prev = `oo${idx}`;
