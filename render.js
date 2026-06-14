@@ -13,6 +13,17 @@ function scalePad(inputTag, outputTag, W, H, bgColor = "black@0") {
   );
 }
 
+// Escape a user string for safe use inside an ffmpeg drawtext "text=" value.
+// Also converts a literal "\n" (typed by the user) into a real line break.
+function escText(s, maxLen = 60) {
+  return (s || "")
+    .substring(0, maxLen)
+    .replace(/\\n/g, "\n")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/:/g, "\\:");
+}
+
 function render(data, output) {
   return new Promise((resolve, reject) => {
 
@@ -41,7 +52,7 @@ function render(data, output) {
     const W = 1280;
     const H = 720;
 
-    // Bottom bar
+    // ── Bottom bar ──────────────────────────────────────────────────────
     const BAR_H = 100;
     const BAR_Y = H - BAR_H;
     const LABEL_W = 180;
@@ -49,20 +60,39 @@ function render(data, output) {
     const FONT_SIZE = 52;
     const textY = BAR_Y + Math.round((BAR_H - FONT_SIZE) / 2) - 4;
 
-    // No-bg image
+    // ── No-bg image (character silhouette) ────────────────────────────
     const IMG_W = Math.max(80, Math.min(260, Math.floor(slotW * 0.9)));
     const IMG_H = Math.round(IMG_W * 1.35);
 
     const IMG_TOP_Y = BAR_Y - IMG_H - (-60);
 
-    // Original image
+    // ── Original image (crossfades on top of silhouette) ──────────────
     const ORIG_W = Math.round(IMG_W * 0.85);
     const ORIG_H = Math.round(IMG_H * 0.85);
     const ORIG_TOP_Y = IMG_TOP_Y - ORIG_H - (-10);
 
-    // Text
+    // ── Name text (above the silhouette) ───────────────────────────────
     const TEXT_FONT = Math.max(16, Math.min(26, Math.floor(IMG_W * 0.12)));
     const TEXT_Y = IMG_TOP_Y - TEXT_FONT - (-20);
+
+    // ── The vertical black box above "RANK", and its inner layout ──────
+    // Box spans x:0..LABEL_W, y:RANK_BOX_TOP..BAR_Y (bottom flush with bar)
+    const RANK_BOX_TOP = IMG_TOP_Y - 60 - 160;
+    const RANK_BOX_H   = IMG_H + 160;
+    const RBOX_CENTER_X = LABEL_W / 2;
+
+    // Title — top of the box
+    const RBOX_TITLE_FONT = 22;
+    const RBOX_TITLE_Y = RANK_BOX_TOP + 35;
+
+    // Icon — middle of the box, bigger
+    const RBOX_ICON_SIZE = Math.min(LABEL_W - 30, Math.round(RANK_BOX_H * 0.45));
+    const RBOX_ICON_X = Math.round(RBOX_CENTER_X - RBOX_ICON_SIZE / 2);
+    const RBOX_ICON_Y = Math.round(RANK_BOX_TOP + RANK_BOX_H * 0.35 - RBOX_ICON_SIZE / 2);
+
+    // Description — bottom of the box
+    const RBOX_DESC_FONT = 18;
+    const RBOX_DESC_Y = RANK_BOX_TOP + RANK_BOX_H - 200;
 
     // Animation duration in seconds (how long the slide/fade takes)
     const ANIM_DUR = 0.5;
@@ -75,9 +105,11 @@ function render(data, output) {
       .input(path.join(__dirname, "background.png"))
       .inputOptions(["-loop", "1"]);
 
+    // 3 inputs per item: no-bg (cut), original, icon
     sorted.forEach(item => {
       command.input(item.processedImage);
       command.input(item.originalImage);
+      command.input(item.iconImage);
     });
 
     const filters = [];
@@ -86,8 +118,9 @@ function render(data, output) {
     let prev = "bg";
 
     sorted.forEach((item, idx) => {
-      const cutInput  = idx * 2 + 1;
-      const origInput = idx * 2 + 2;
+      const cutInput  = idx * 3 + 1;
+      const origInput = idx * 3 + 2;
+      const iconInput = idx * 3 + 3;
 
       const tStart   = idx * SEG;
       const tEnd     = totalDuration;
@@ -100,17 +133,29 @@ function render(data, output) {
       const tCutAnimEnd  = tStart + ANIM_DUR;
       const tOrigAnimEnd = tOrigIn + ANIM_DUR;
 
+      // Shared fade-in/fade-out alpha expression for the "text reveal" window
+      // (used by Name, Title, and Description — same animation, same timing)
+      const textAlpha =
+        `if(lt(t,${tTextIn}),0,` +
+        `if(lt(t,${tTextIn + ANIM_DUR}),(t-${tTextIn})/${ANIM_DUR},` +       // fade in
+        `if(lt(t,${tTextOut - ANIM_DUR}),1,` +
+        `if(lt(t,${tTextOut}),(${tTextOut}-t)/${ANIM_DUR},0))))`;             // fade out
+
       const rank = item.rank;
-      const safeName = item.name
-        .substring(0, 60)
-        .replace(/\\n/g, "\n")   // convert literal "\n" typed by user into a real line break
-        .replace(/\\/g, "\\\\")
-        .replace(/'/g, "\\'")
-        .replace(/:/g, "\\:");
+      const safeName  = escText(item.name, 60);
+      const safeTitle = escText(item.title, 40);
+      const safeDesc  = escText(item.description, 80);
 
       const slotCenterX = Math.round(LABEL_W + slotW * idx + slotW / 2);
       const imgX  = Math.round(slotCenterX - IMG_W / 2);
       const origX = Math.round(slotCenterX - ORIG_W / 2);
+
+      // ── Scale images ────────────────────────────────────────────────
+      filters.push(scalePad(`${cutInput}:v`, `cutScaled${idx}`, IMG_W, IMG_H));
+      // Turn the cutout into a solid black silhouette (keeps alpha/shape, zeroes RGB)
+      filters.push(`[cutScaled${idx}]lutrgb=r=0:g=0:b=0[cut${idx}]`);
+      filters.push(scalePad(`${origInput}:v`, `orig${idx}`, ORIG_W, ORIG_H));
+      filters.push(scalePad(`${iconInput}:v`, `rboxIconScaled${idx}`, RBOX_ICON_SIZE, RBOX_ICON_SIZE));
 
       // ── Bottom bar ──────────────────────────────────────────────────
       filters.push(
@@ -120,10 +165,9 @@ function render(data, output) {
         `[bar${idx}]drawtext=text='RANK'${fa}:x=20:y=${textY}:fontsize=${FONT_SIZE}:fontcolor=white:borderw=2:bordercolor=black[rl${idx}]`
       );
 
-      // Black box above the "RANK" label, same width as the label column,
-      // lined up with the row where the character images sit
+      // Black box above the "RANK" label
       filters.push(
-        `[rl${idx}]drawbox=x=0:y=${IMG_TOP_Y - 60 -160}:w=${LABEL_W}:h=${IMG_H + 160}:color=black@0.85:t=fill[rankBox${idx}]`
+        `[rl${idx}]drawbox=x=0:y=${RANK_BOX_TOP}:w=${LABEL_W}:h=${RANK_BOX_H}:color=black@0.85:t=fill[rankBox${idx}]`
       );
 
       // Border line between the bottom bar and the black box above it
@@ -132,6 +176,36 @@ function render(data, output) {
       );
 
       let pf = `rankBoxBorder${idx}`;
+
+      // ── Title (top of box) — fades with this item's Name text ────────
+      filters.push(
+        `[${pf}]drawtext=text='${safeTitle}'${fa}:` +
+        `x=${RBOX_CENTER_X}-text_w/2:y=${RBOX_TITLE_Y}:` +
+        `fontsize=${RBOX_TITLE_FONT}:fontcolor=#FFD700:borderw=2:bordercolor=black:` +
+        `alpha='${textAlpha}':` +
+        `enable='between(t,${tTextIn},${tTextOut})'[rboxTitle${idx}]`
+      );
+      pf = `rboxTitle${idx}`;
+
+      // ── Icon (middle of box, bigger) — same window as Name text ──────
+      filters.push(
+        `[${pf}][rboxIconScaled${idx}]overlay=x=${RBOX_ICON_X}:y=${RBOX_ICON_Y}:enable='between(t,${tTextIn},${tTextOut})'[rboxIcon${idx}]`
+      );
+      pf = `rboxIcon${idx}`;
+
+      // ── Description (bottom of box) — fades with this item's Name text ─
+      if (safeDesc) {
+        filters.push(
+          `[${pf}]drawtext=text='${safeDesc}'${fa}:` +
+          `x=${RBOX_CENTER_X}-text_w/2:y=${RBOX_DESC_Y}:` +
+          `fontsize=${RBOX_DESC_FONT}:fontcolor=white@0.85:borderw=1:bordercolor=black:` +
+          `alpha='${textAlpha}':` +
+          `enable='between(t,${tTextIn},${tTextOut})'[rboxDesc${idx}]`
+        );
+        pf = `rboxDesc${idx}`;
+      }
+
+      // ── Rank number row (always visible) ──────────────────────────────
       sorted.forEach((other, oi) => {
         const nx = Math.round(LABEL_W + slotW * oi + slotW / 2);
         const divTag = `dv${idx}_${oi}`;
@@ -145,34 +219,19 @@ function render(data, output) {
         pf = numTag;
       });
 
-      // ── Scale images ────────────────────────────────────────────────
-      filters.push(scalePad(`${cutInput}:v`, `cutScaled${idx}`, IMG_W, IMG_H));
-      // Turn the cutout into a solid black silhouette (keeps alpha/shape, zeroes RGB)
-      filters.push(`[cutScaled${idx}]lutrgb=r=0:g=0:b=0[cut${idx}]`);
-      filters.push(scalePad(`${origInput}:v`, `orig${idx}`, ORIG_W, ORIG_H));
-
       // ── ANIMATION: no-bg slides UP from bar into position ───────────
-      // Starts at BAR_Y (behind the bar), eases up to IMG_TOP_Y over ANIM_DUR seconds
-      // y = BAR_Y - (BAR_Y - IMG_TOP_Y) * progress   where progress = (t-tStart)/ANIM_DUR clamped 0-1
       const slideDistance = BAR_Y - IMG_TOP_Y;
       const cutYExpr =
-        `if(lt(t,${tStart}),${H},` +                                         // hidden before segment
+        `if(lt(t,${tStart}),${H},` +
         `if(lt(t,${tCutAnimEnd}),` +
-          `${BAR_Y}-${slideDistance}*((t-${tStart})/${ANIM_DUR}),` +         // sliding up
-          `${IMG_TOP_Y}))`;                                                    // settled
+          `${BAR_Y}-${slideDistance}*((t-${tStart})/${ANIM_DUR}),` +
+          `${IMG_TOP_Y}))`;
 
       filters.push(
         `[${pf}][cut${idx}]overlay=x=${imgX}:y='${cutYExpr}':enable='between(t,${tStart},${tEnd})'[co${idx}]`
       );
 
-      // ── ANIMATION: text fades in at tTextIn, fades out at tTextOut ──
-      // ffmpeg drawtext alpha expression: fade in over ANIM_DUR, fade out over ANIM_DUR
-      const textAlpha =
-        `if(lt(t,${tTextIn}),0,` +
-        `if(lt(t,${tTextIn + ANIM_DUR}),(t-${tTextIn})/${ANIM_DUR},` +       // fade in
-        `if(lt(t,${tTextOut - ANIM_DUR}),1,` +
-        `if(lt(t,${tTextOut}),(${tTextOut}-t)/${ANIM_DUR},0))))`;             // fade out
-
+      // ── Name text — fades in/out (same window/animation as Title/Icon/Desc) ─
       filters.push(
         `[co${idx}]drawtext=text='${safeName}'${fa}:` +
         `x=${slotCenterX}-text_w/2:y=${TEXT_Y}:` +
@@ -182,14 +241,13 @@ function render(data, output) {
       );
 
       // ── ANIMATION: original image slides DOWN from above ─────────────
-      // Starts ORIG_H px above its final position, slides down over ANIM_DUR
-      const origStartY = ORIG_TOP_Y - ORIG_H;   // starts above
-      const origSlide  = ORIG_TOP_Y - origStartY; // distance to travel down
+      const origStartY = ORIG_TOP_Y - ORIG_H;
+      const origSlide  = ORIG_TOP_Y - origStartY;
       const origYExpr =
-        `if(lt(t,${tOrigIn}),${-ORIG_H},` +                                  // hidden above canvas
+        `if(lt(t,${tOrigIn}),${-ORIG_H},` +
         `if(lt(t,${tOrigAnimEnd}),` +
-          `${origStartY}+${origSlide}*((t-${tOrigIn})/${ANIM_DUR}),` +       // sliding down
-          `${ORIG_TOP_Y}))`;                                                   // settled
+          `${origStartY}+${origSlide}*((t-${tOrigIn})/${ANIM_DUR}),` +
+          `${ORIG_TOP_Y}))`;
 
       filters.push(
         `[to${idx}][orig${idx}]overlay=x=${origX}:y='${origYExpr}':enable='between(t,${tOrigIn},${tOrigOut})'[oo${idx}]`

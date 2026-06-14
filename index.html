@@ -36,7 +36,8 @@
     }
 
     input,
-    select {
+    select,
+    textarea {
 
       display: block;
 
@@ -52,6 +53,24 @@
 
       font-size: 16px;
 
+      font-family: Arial;
+
+      box-sizing: border-box;
+
+    }
+
+    textarea {
+      resize: vertical;
+    }
+
+    label.field-label {
+      display: block;
+      margin-top: 16px;
+      margin-bottom: 4px;
+      font-size: 13px;
+      color: #aaa;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
 
     button {
@@ -138,18 +157,44 @@
 
         <h3>Character ${count + 1}</h3>
 
+        <label class="field-label">Image</label>
         <input
           type="file"
           accept="image/*"
+          class="image-input"
           required
         />
 
+        <label class="field-label">Name</label>
         <input
           type="text"
           placeholder="Character name"
+          class="name-input"
           required
         />
 
+        <label class="field-label">Title (shown in RANK box)</label>
+        <input
+          type="text"
+          placeholder="e.g. Best Villain"
+          class="title-input"
+        />
+
+        <label class="field-label">Icon (PNG or SVG, optional)</label>
+        <input
+          type="file"
+          accept=".png,.svg,image/png,image/svg+xml"
+          class="icon-input"
+        />
+
+        <label class="field-label">Description (shown in RANK box)</label>
+        <textarea
+          class="desc-input"
+          rows="3"
+          placeholder="Short description for this item..."
+        ></textarea>
+
+        <label class="field-label">Rank</label>
         <select class="rank-select">
 
           ${[10,9,8,7,6,5,4,3,2,1]
@@ -188,22 +233,42 @@
 
         const formData = new FormData();
         const items = [];
+        let itemIndex = 0;
 
         itemDivs.forEach((div) => {
-          const fileInput =
-            div.querySelector('input[type="file"]');
-          const textInput =
-            div.querySelector('input[type="text"]');
+          const imageInput =
+            div.querySelector('.image-input');
+          const nameInput =
+            div.querySelector('.name-input');
+          const titleInput =
+            div.querySelector('.title-input');
+          const iconInput =
+            div.querySelector('.icon-input');
+          const descInput =
+            div.querySelector('.desc-input');
           const rankSelect =
             div.querySelector(".rank-select");
 
-          if (!fileInput.files[0]) return;
+          if (!imageInput.files[0]) return;
 
-          formData.append("images", fileInput.files[0]);
+          formData.append("images", imageInput.files[0]);
+
+          // Icon is optional — only append if the user picked one.
+          // Field name is unique per item (icon_0, icon_1, ...) so the
+          // server can match it back to the right item even when some
+          // items have no icon at all.
+          if (iconInput.files[0]) {
+            formData.append(`icon_${itemIndex}`, iconInput.files[0]);
+          }
+
           items.push({
-            name: textInput.value.trim() || "Unnamed",
+            name: nameInput.value.trim() || "Unnamed",
+            title: titleInput.value.trim() || "",
+            description: descInput.value.trim() || "",
             rank: parseInt(rankSelect.value, 10),
           });
+
+          itemIndex++;
         });
 
         if (!items.length) {

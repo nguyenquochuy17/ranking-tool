@@ -53,4 +53,57 @@ async function processImage(inputPath) {
 
 }
 
-module.exports = processImage;
+/**
+ * Rasterize an uploaded icon (PNG or SVG) into a clean, high-res
+ * transparent-background square PNG. 400x400 source ensures crisp
+ * downscaling no matter how big the icon is displayed in the video.
+ */
+async function processIcon(inputPath, size = 400) {
+  const outputPath = path.join(
+    "uploads",
+    `icon_${Date.now()}_${Math.round(Math.random() * 1e6)}.png`
+  );
+
+  const ext = path.extname(inputPath).toLowerCase();
+
+  // For SVGs, set a high density so rasterization is sharp
+  const input = ext === ".svg"
+    ? sharp(inputPath, { density: 300 })
+    : sharp(inputPath);
+
+  await input
+    .resize(size, size, {
+      fit: "contain",
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    })
+    .png()
+    .toFile(outputPath);
+
+  return path.resolve(outputPath);
+}
+
+/**
+ * Create a fully transparent placeholder PNG, used when an item
+ * has no icon. Keeps the ffmpeg input count consistent (3 per item).
+ */
+async function createBlankIcon(size = 10) {
+  const outputPath = path.join(
+    "uploads",
+    `icon_blank_${Date.now()}_${Math.round(Math.random() * 1e6)}.png`
+  );
+
+  await sharp({
+    create: {
+      width: size,
+      height: size,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .png()
+    .toFile(outputPath);
+
+  return path.resolve(outputPath);
+}
+
+module.exports = { processImage, processIcon, createBlankIcon };
