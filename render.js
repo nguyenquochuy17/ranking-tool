@@ -24,6 +24,66 @@ function escText(s, maxLen = 60) {
     .replace(/:/g, "\\:");
 }
 
+// Rough width estimate for a bold sans-serif font at a given size.
+function estimateTextWidth(str, fontSize) {
+  return str.length * fontSize * 0.55;
+}
+
+// Word-wrap text into multiple lines (joined by real "\n") so each line's
+// estimated width fits within maxWidth. Respects existing line breaks.
+function wrapText(text, fontSize, maxWidth) {
+  if (!text) return text;
+
+  const lines = text.split("\n");
+  const wrapped = [];
+
+  for (const line of lines) {
+    const words = line.split(" ");
+    let current = "";
+
+    for (const word of words) {
+      const test = current ? `${current} ${word}` : word;
+      if (estimateTextWidth(test, fontSize) > maxWidth && current) {
+        wrapped.push(current);
+        current = word;
+      } else {
+        current = test;
+      }
+    }
+    wrapped.push(current);
+  }
+
+  return wrapped.join("\n");
+}
+
+// Render multi-line text as a chain of separate drawtext filters — one per
+// line — each individually centered. (drawtext only left-aligns lines
+// within a single multi-line block, which looks bad when line widths vary.)
+function multilineCentered({
+  inputTag, text, fa, fontSize, fontcolor, borderw,
+  centerX, marginLeft, startY, lineHeight,
+  alphaExpr, enableExpr, tagPrefix,
+}) {
+  const lines = (text || "").split("\n");
+  const filterStrs = [];
+  let pf = inputTag;
+
+  lines.forEach((line, i) => {
+    const y = startY + i * lineHeight;
+    const tag = `${tagPrefix}${i}`;
+    filterStrs.push(
+      `[${pf}]drawtext=text='${line}'${fa}:` +
+      `x=max(${marginLeft}\\,${centerX}-text_w/2):y=${y}:` +
+      `fontsize=${fontSize}:fontcolor=${fontcolor}:borderw=${borderw}:bordercolor=black:` +
+      `alpha='${alphaExpr}':` +
+      `enable='${enableExpr}'[${tag}]`
+    );
+    pf = tag;
+  });
+
+  return { filterStrs, lastTag: pf, lineCount: lines.length };
+}
+
 function render(data, output) {
   return new Promise((resolve, reject) => {
 
@@ -81,9 +141,17 @@ function render(data, output) {
     const RANK_BOX_H   = IMG_H + 160;
     const RBOX_CENTER_X = LABEL_W / 2;
 
+    // Text margin inside the box, and the resulting max line width for wrapping
+    const RBOX_TEXT_MARGIN = 0;
+    const RBOX_CONTENT_W = LABEL_W - RBOX_TEXT_MARGIN * 2 + 15;
+
     // Title — top of the box
     const RBOX_TITLE_FONT = 22;
     const RBOX_TITLE_Y = RANK_BOX_TOP + 35;
+    const RBOX_TITLE_LINE_HEIGHT = Math.round(RBOX_TITLE_FONT * 1.25);
+
+    // Minimum gap between the bottom of the (wrapped) title and the icon below it
+    const RBOX_TITLE_ICON_GAP = 15;
 
     // Icon — middle of the box, bigger
     const RBOX_ICON_SIZE = Math.min(LABEL_W - 30, Math.round(RANK_BOX_H * 0.45));
@@ -146,6 +214,20 @@ function render(data, output) {
       const safeTitle = escText(item.title, 40);
       const safeDesc  = escText(item.description, 80);
 
+      // Word-wrap Title/Description so they fit within the box width
+      const wrappedTitle = wrapText(safeTitle, RBOX_TITLE_FONT, RBOX_CONTENT_W);
+      const wrappedDesc  = wrapText(safeDesc, RBOX_DESC_FONT, RBOX_CONTENT_W);
+
+      // Icon always sits below the title (whatever its line count) with a gap,
+      // but never higher than the default RBOX_ICON_Y position.
+      const titleLineCount = safeTitle ? wrappedTitle.split("\n").length : 0;
+      const titleBottomY = RBOX_TITLE_Y + titleLineCount * RBOX_TITLE_LINE_HEIGHT;
+      const iconY = Math.max(RBOX_ICON_Y, titleBottomY + RBOX_TITLE_ICON_GAP);
+
+      // Description always sits below the icon with a gap
+      const ICON_DESC_GAP = 40;
+      const descY = iconY + RBOX_ICON_SIZE + ICON_DESC_GAP;
+
       const slotCenterX = Math.round(LABEL_W + slotW * idx + slotW / 2);
       const imgX  = Math.round(slotCenterX - IMG_W / 2);
       const origX = Math.round(slotCenterX - ORIG_W / 2);
@@ -178,31 +260,54 @@ function render(data, output) {
       let pf = `rankBoxBorder${idx}`;
 
       // ── Title (top of box) — fades with this item's Name text ────────
-      filters.push(
-        `[${pf}]drawtext=text='${safeTitle}'${fa}:` +
-        `x=${RBOX_CENTER_X}-text_w/2:y=${RBOX_TITLE_Y}:` +
-        `fontsize=${RBOX_TITLE_FONT}:fontcolor=#FFD700:borderw=2:bordercolor=black:` +
-        `alpha='${textAlpha}':` +
-        `enable='between(t,${tTextIn},${tTextOut})'[rboxTitle${idx}]`
-      );
-      pf = `rboxTitle${idx}`;
+      // Each line is centered independently (avoids left-justified look
+      // when wrapped lines have very different widths)
+      {
+        const { filterStrs, lastTag } = multilineCentered({
+          inputTag: pf,
+          text: wrappedTitle,
+          fa,
+          fontSize: RBOX_TITLE_FONT,
+          fontcolor: "#FFD700",
+          borderw: 2,
+          centerX: RBOX_CENTER_X,
+          marginLeft: RBOX_TEXT_MARGIN,
+          startY: RBOX_TITLE_Y,
+          lineHeight: RBOX_TITLE_LINE_HEIGHT,
+          alphaExpr: textAlpha,
+          enableExpr: `between(t,${tTextIn},${tTextOut})`,
+          tagPrefix: `rboxTitle${idx}_`,
+        });
+        filters.push(...filterStrs);
+        pf = lastTag;
+      }
 
       // ── Icon (middle of box, bigger) — same window as Name text ──────
       filters.push(
-        `[${pf}][rboxIconScaled${idx}]overlay=x=${RBOX_ICON_X}:y=${RBOX_ICON_Y}:enable='between(t,${tTextIn},${tTextOut})'[rboxIcon${idx}]`
+        `[${pf}][rboxIconScaled${idx}]overlay=x=${RBOX_ICON_X}:y=${iconY}:enable='between(t,${tTextIn},${tTextOut})'[rboxIcon${idx}]`
       );
       pf = `rboxIcon${idx}`;
 
       // ── Description (bottom of box) — fades with this item's Name text ─
       if (safeDesc) {
-        filters.push(
-          `[${pf}]drawtext=text='${safeDesc}'${fa}:` +
-          `x=${RBOX_CENTER_X}-text_w/2:y=${RBOX_DESC_Y}:` +
-          `fontsize=${RBOX_DESC_FONT}:fontcolor=white@0.85:borderw=1:bordercolor=black:` +
-          `alpha='${textAlpha}':` +
-          `enable='between(t,${tTextIn},${tTextOut})'[rboxDesc${idx}]`
-        );
-        pf = `rboxDesc${idx}`;
+        const descLineHeight = Math.round(RBOX_DESC_FONT * 1.25);
+        const { filterStrs, lastTag } = multilineCentered({
+          inputTag: pf,
+          text: wrappedDesc,
+          fa,
+          fontSize: RBOX_DESC_FONT,
+          fontcolor: "white@0.85",
+          borderw: 1,
+          centerX: RBOX_CENTER_X,
+          marginLeft: RBOX_TEXT_MARGIN,
+          startY: descY,
+          lineHeight: descLineHeight,
+          alphaExpr: textAlpha,
+          enableExpr: `between(t,${tTextIn},${tTextOut})`,
+          tagPrefix: `rboxDesc${idx}_`,
+        });
+        filters.push(...filterStrs);
+        pf = lastTag;
       }
 
       // ── Rank number row (always visible) ──────────────────────────────
