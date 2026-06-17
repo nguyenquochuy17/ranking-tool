@@ -1,343 +1,475 @@
 <!DOCTYPE html>
 <html>
-
 <head>
-
   <title>Ranking Tool</title>
-
   <style>
+    * { box-sizing: border-box; }
 
     body {
-
       background: #111;
       color: white;
       font-family: Arial;
-
       padding: 30px;
-
+      max-width: 860px;
+      margin: 0 auto;
     }
 
-    h2 {
+    h2 { font-size: 36px; margin-bottom: 6px; }
+    .subtitle { color: #888; margin-bottom: 28px; font-size: 14px; }
 
-      font-size: 40px;
-
+    .section-card {
+      background: #181818;
+      border: 1px solid #333;
+      border-radius: 14px;
+      margin-bottom: 28px;
+      overflow: hidden;
     }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #222;
+      padding: 14px 20px;
+      border-bottom: 1px solid #333;
+    }
+
+    .section-title {
+      font-size: 15px;
+      font-weight: bold;
+      color: #ffcc00;
+      letter-spacing: 0.04em;
+    }
+
+    .section-range {
+      font-size: 13px;
+      color: #888;
+      margin-left: 10px;
+    }
+
+    .btn-remove-section {
+      background: none;
+      border: 1px solid #555;
+      color: #aaa;
+      padding: 5px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      margin-top: 0;
+    }
+    .btn-remove-section:hover { background: #ff444422; border-color: #ff4444; color: #ff6666; }
+
+    .section-items { padding: 16px 20px 4px; }
 
     .item {
-
       background: #1e1e1e;
-
-      padding: 20px;
-
-      border-radius: 12px;
-
-      margin-bottom: 20px;
-
-    }
-
-    input,
-    select,
-    textarea {
-
-      display: block;
-
-      width: 100%;
-
-      padding: 12px;
-
-      margin-top: 10px;
-
+      border: 1px solid #2a2a2a;
+      padding: 16px 20px;
       border-radius: 10px;
+      margin-bottom: 14px;
+      position: relative;
+    }
 
+    .item-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .item-header h3 {
+      margin: 0;
+      font-size: 14px;
+      color: #ccc;
+      font-weight: normal;
+    }
+
+    .btn-remove-item {
+      background: none;
       border: none;
+      color: #666;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0 4px;
+      line-height: 1;
+      margin-top: 0;
+    }
+    .btn-remove-item:hover { color: #ff6666; }
 
-      font-size: 16px;
-
-      font-family: Arial;
-
-      box-sizing: border-box;
-
+    .fields-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
     }
 
-    textarea {
-      resize: vertical;
-    }
+    .field-full { grid-column: 1 / -1; }
 
     label.field-label {
       display: block;
-      margin-top: 16px;
-      margin-bottom: 4px;
-      font-size: 13px;
-      color: #aaa;
+      margin-bottom: 5px;
+      font-size: 12px;
+      color: #888;
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
 
-    button {
+    input[type="text"],
+    input[type="number"],
+    input[type="file"],
+    textarea {
+      display: block;
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid #333;
+      background: #111;
+      color: white;
+      font-size: 14px;
+      font-family: Arial;
+    }
 
-      padding: 14px 20px;
+    input[type="number"] { width: 120px; }
+    textarea { resize: vertical; }
+    input:focus, textarea:focus { outline: none; border-color: #ffcc00; }
 
-      border: none;
+    .section-actions {
+      display: flex;
+      gap: 10px;
+      padding: 0 20px 16px;
+    }
 
-      border-radius: 12px;
-
-      background: #ffcc00;
-
-      color: black;
-
-      font-size: 18px;
-
-      font-weight: bold;
-
+    .btn-add-item {
+      background: #2a2a2a;
+      border: 1px solid #444;
+      color: #ccc;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
       cursor: pointer;
+      margin-top: 0;
+    }
+    .btn-add-item:hover { background: #333; }
 
-      margin-top: 20px;
-
+    .top-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
     }
 
-    button:hover {
-
-      opacity: 0.9;
-
+    .btn-add-section {
+      background: #ffcc00;
+      color: black;
+      border: none;
+      padding: 12px 22px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 0;
     }
+    .btn-add-section:hover { opacity: 0.9; }
 
+    .btn-render {
+      background: #00cc66;
+      color: black;
+      border: none;
+      padding: 12px 28px;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 0;
+    }
+    .btn-render:hover { opacity: 0.9; }
+    .btn-render:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    #status { color: #888; font-size: 14px; margin-top: 10px; }
+
+    .advanced-toggle {
+      margin-top: 10px;
+      background: none;
+      border: none;
+      color: #555;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 0;
+      text-align: left;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .advanced-toggle:hover { color: #aaa; }
+
+    .advanced-fields {
+      display: none;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #2a2a2a;
+    }
+    .advanced-fields.open { display: block; }
+
+    .advanced-fields .fields-row { margin-top: 0; }
+
+    .advanced-fields input[type="number"] { width: 100%; }
   </style>
-
 </head>
-
 <body>
 
   <h2>Ranking Video Tool</h2>
+  <p class="subtitle">Create sections of ranking items (ranks 1–100). Each section becomes a segment in the final video, connected by fade transitions.</p>
 
-  <form id="form">
+  <div class="top-actions">
+    <button class="btn-add-section" type="button" onclick="addSection()">+ Add Section</button>
+    <button class="btn-render" type="button" id="renderBtn" onclick="submitRender()">Render Video</button>
+  </div>
 
-    <div id="items"></div>
+  <div id="sections"></div>
 
-    <button
-      type="button"
-      onclick="addItem()"
-    >
-      + Add Item
-    </button>
-
-    <button
-      type="button"
-      onclick="addItems(10)"
-    >
-      + Add 10 Items
-    </button>
-
-    <br><br>
-
-    <button type="submit" id="renderBtn">
-      Render Video
-    </button>
-
-    <p id="status"></p>
-
-  </form>
+  <p id="status"></p>
 
   <script>
+    let sectionCount = 0;
+    let itemCounters = {};
 
-    let count = 0;
+    function getLastSectionMinRank() {
+      const sectionDivs = document.querySelectorAll(".section-card");
+      if (!sectionDivs.length) return null;
+      const lastSection = sectionDivs[sectionDivs.length - 1];
+      const rankInputs = lastSection.querySelectorAll(".rank-input");
+      let min = Infinity;
+      rankInputs.forEach(inp => {
+        const v = parseInt(inp.value, 10);
+        if (!isNaN(v)) min = Math.min(min, v);
+      });
+      return min === Infinity ? null : min;
+    }
 
-    function addItem(rank) {
+    function addSection(startRank) {
+      const container = document.getElementById("sections");
+      sectionCount++;
+      const sid = sectionCount;
 
-      const container =
-        document.getElementById("items");
+      if (startRank === undefined) {
+        const prevMin = getLastSectionMinRank();
+        startRank = prevMin !== null ? prevMin - 1 : 10;
+      }
 
-      const div =
-        document.createElement("div");
-
-      div.className = "item";
-
-      const defaultRank = rank ?? Math.max(1, 11 - (count + 1));
+      const div = document.createElement("div");
+      div.className = "section-card";
+      div.dataset.sid = sid;
 
       div.innerHTML = `
-
-        <h3>Character ${count + 1}</h3>
-
-        <label class="field-label">Image</label>
-        <input
-          type="file"
-          accept="image/*"
-          class="image-input"
-          required
-        />
-
-        <label class="field-label">Name</label>
-        <input
-          type="text"
-          placeholder="Character name"
-          class="name-input"
-          required
-        />
-
-        <label class="field-label">Title (shown in RANK box)</label>
-        <input
-          type="text"
-          placeholder="e.g. Best Villain"
-          class="title-input"
-        />
-
-        <label class="field-label">Icon (PNG or SVG, optional)</label>
-        <input
-          type="file"
-          accept=".png,.svg,image/png,image/svg+xml"
-          class="icon-input"
-        />
-
-        <label class="field-label">Description (shown in RANK box)</label>
-        <textarea
-          class="desc-input"
-          rows="3"
-          placeholder="Short description for this item..."
-        ></textarea>
-
-        <label class="field-label">Rank</label>
-        <select class="rank-select">
-
-          ${[10,9,8,7,6,5,4,3,2,1]
-            .map(r =>
-              `<option value="${r}" ${r === defaultRank ? "selected" : ""}>
-                Rank ${r}
-              </option>`
-            ).join("")}
-
-        </select>
-
+        <div class="section-header">
+          <div>
+            <span class="section-title">Section ${sid}</span>
+            <span class="section-range" id="range-${sid}"></span>
+          </div>
+          <button class="btn-remove-section" type="button" onclick="removeSection(${sid})">Remove Section</button>
+        </div>
+        <div class="section-items" id="items-${sid}"></div>
+        <div class="section-actions">
+          <button class="btn-add-item" type="button" onclick="addItem(${sid})">+ Add Item</button>
+        </div>
       `;
 
       container.appendChild(div);
-
-      count++;
-
+      addItem(sid, startRank);
     }
 
-    function addItems(amount) {
-      for (let i = 0; i < amount; i++) {
-        addItem(10 - i);
+    function removeSection(sid) {
+      const el = document.querySelector(`.section-card[data-sid="${sid}"]`);
+      if (el) el.remove();
+    }
+
+    function addItem(sid, rank) {
+      const container = document.getElementById(`items-${sid}`);
+      if (!container) return;
+
+      if (!itemCounters[sid]) itemCounters[sid] = 0;
+      itemCounters[sid]++;
+      const localNum = itemCounters[sid];
+
+      if (rank === undefined) {
+        const existing = container.querySelectorAll(".rank-input");
+        let min = Infinity;
+        existing.forEach(inp => {
+          const v = parseInt(inp.value, 10);
+          if (!isNaN(v)) min = Math.min(min, v);
+        });
+        rank = min !== Infinity ? min - 1 : (getLastSectionMinRank() || 10);
+      }
+
+      const iid = `${sid}_${localNum}`;
+      const div = document.createElement("div");
+      div.className = "item";
+      div.dataset.iid = iid;
+
+      div.innerHTML = `
+        <div class="item-header">
+          <h3>Item ${localNum}</h3>
+          <button class="btn-remove-item" type="button" onclick="removeItem('${iid}')" title="Remove">×</button>
+        </div>
+        <div class="fields-row">
+          <div class="field-full">
+            <label class="field-label">Image</label>
+            <input type="file" accept="image/*" class="image-input" />
+          </div>
+          <div>
+            <label class="field-label">Name</label>
+            <input type="text" placeholder="Character name" class="name-input" />
+          </div>
+          <div>
+            <label class="field-label">Rank</label>
+            <input type="number" min="1" max="100" value="${rank}" class="rank-input" oninput="updateSectionHeader(${sid})" />
+          </div>
+          <div>
+            <label class="field-label">Title (shown in RANK box)</label>
+            <input type="text" placeholder="e.g. Best Villain" class="title-input" />
+          </div>
+          <div>
+            <label class="field-label">Icon (PNG or SVG, optional)</label>
+            <input type="file" accept=".png,.svg,image/png,image/svg+xml" class="icon-input" />
+          </div>
+          <div class="field-full">
+            <label class="field-label">Description (shown in RANK box)</label>
+            <textarea class="desc-input" rows="2" placeholder="Short description..."></textarea>
+          </div>
+        </div>
+        <button class="advanced-toggle" type="button" onclick="toggleAdvanced('${iid}')">▸ Advanced</button>
+        <div class="advanced-fields" id="adv-${iid}">
+          <div class="fields-row">
+            <div>
+              <label class="field-label">Silhouette offset (px)</label>
+              <input type="number" value="0" class="sil-offset-input" placeholder="0" />
+              <span style="font-size:11px;color:#666;display:block;margin-top:4px">negative = lower, positive = higher</span>
+            </div>
+            <div>
+              <label class="field-label">Original image scale (%)</label>
+              <input type="number" value="100" min="10" max="300" class="orig-scale-input" placeholder="100" />
+              <span style="font-size:11px;color:#666;display:block;margin-top:4px">100 = default size</span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      container.appendChild(div);
+      updateSectionHeader(sid);
+    }
+
+    function toggleAdvanced(iid) {
+      const panel = document.getElementById(`adv-${iid}`);
+      const btn = panel.previousElementSibling;
+      const open = panel.classList.toggle("open");
+      btn.textContent = (open ? "▾" : "▸") + " Advanced";
+    }
+
+    function removeItem(iid) {
+      const el = document.querySelector(`.item[data-iid="${iid}"]`);
+      if (!el) return;
+      const sid = parseInt(iid.split("_")[0], 10);
+      el.remove();
+      updateSectionHeader(sid);
+    }
+
+    function updateSectionHeader(sid) {
+      const container = document.getElementById(`items-${sid}`);
+      const rangeEl = document.getElementById(`range-${sid}`);
+      if (!container || !rangeEl) return;
+      const ranks = [];
+      container.querySelectorAll(".rank-input").forEach(inp => {
+        const v = parseInt(inp.value, 10);
+        if (!isNaN(v)) ranks.push(v);
+      });
+      if (!ranks.length) {
+        rangeEl.textContent = "";
+      } else {
+        const maxR = Math.max(...ranks);
+        const minR = Math.min(...ranks);
+        rangeEl.textContent = maxR === minR ? `— Rank ${maxR}` : `— Ranks ${maxR} → ${minR}`;
       }
     }
 
-    addItem();
+    async function submitRender() {
+      const sectionDivs = document.querySelectorAll(".section-card");
+      if (!sectionDivs.length) {
+        alert("Add at least one section with items.");
+        return;
+      }
 
-    document
-      .getElementById("form")
-      .onsubmit = async (e) => {
+      const formData = new FormData();
+      const sectionsPayload = [];
+      let globalItemIndex = 0;
+      let totalImages = 0;
 
-        e.preventDefault();
-
-        const itemDivs =
-          document.querySelectorAll(".item");
-
-        const formData = new FormData();
-        const items = [];
-        let itemIndex = 0;
-
-        itemDivs.forEach((div) => {
-          const imageInput =
-            div.querySelector('.image-input');
-          const nameInput =
-            div.querySelector('.name-input');
-          const titleInput =
-            div.querySelector('.title-input');
-          const iconInput =
-            div.querySelector('.icon-input');
-          const descInput =
-            div.querySelector('.desc-input');
-          const rankSelect =
-            div.querySelector(".rank-select");
-
-          if (!imageInput.files[0]) return;
+      sectionDivs.forEach(secDiv => {
+        const sectionItems = [];
+        secDiv.querySelectorAll(".item").forEach(div => {
+          const imageInput = div.querySelector(".image-input");
+          if (!imageInput || !imageInput.files[0]) return;
 
           formData.append("images", imageInput.files[0]);
 
-          // Icon is optional — only append if the user picked one.
-          // Field name is unique per item (icon_0, icon_1, ...) so the
-          // server can match it back to the right item even when some
-          // items have no icon at all.
-          if (iconInput.files[0]) {
-            formData.append(`icon_${itemIndex}`, iconInput.files[0]);
+          const iconInput = div.querySelector(".icon-input");
+          if (iconInput && iconInput.files[0]) {
+            formData.append(`icon_${globalItemIndex}`, iconInput.files[0]);
           }
 
-          items.push({
-            name: nameInput.value.trim() || "Unnamed",
-            title: titleInput.value.trim() || "",
-            description: descInput.value.trim() || "",
-            rank: parseInt(rankSelect.value, 10),
+          sectionItems.push({
+            name:        (div.querySelector(".name-input")?.value.trim())  || "Unnamed",
+            title:       (div.querySelector(".title-input")?.value.trim()) || "",
+            description: (div.querySelector(".desc-input")?.value.trim())  || "",
+            rank:        parseInt(div.querySelector(".rank-input")?.value, 10) || 1,
+            silOffset:   parseInt(div.querySelector(".sil-offset-input")?.value, 10) || 0,
+            origScale:   parseFloat(div.querySelector(".orig-scale-input")?.value) || 100,
           });
 
-          itemIndex++;
+          globalItemIndex++;
+          totalImages++;
         });
 
-        if (!items.length) {
-          alert("Add at least one image");
+        if (sectionItems.length) sectionsPayload.push({ items: sectionItems });
+      });
+
+      if (!totalImages) {
+        alert("Add at least one image.");
+        return;
+      }
+
+      formData.append("sections", JSON.stringify(sectionsPayload));
+
+      const renderBtn = document.getElementById("renderBtn");
+      const status    = document.getElementById("status");
+      renderBtn.disabled = true;
+      const sWord = sectionsPayload.length === 1 ? "section" : "sections";
+      status.textContent = `Rendering ${sectionsPayload.length} ${sWord} (${totalImages} items total)…`;
+
+      try {
+        const response = await fetch("/render", { method: "POST", body: formData });
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          status.textContent = "Render failed.";
+          alert("ERROR: " + (data.error || "Unknown error"));
           return;
         }
 
-        formData.append("items", JSON.stringify(items));
+        status.textContent = "Render complete!";
+        alert("Render complete!");
+        window.open(data.url || ("/" + data.video), "_blank");
 
-        const renderBtn =
-          document.getElementById("renderBtn");
-        const status =
-          document.getElementById("status");
+      } catch (err) {
+        console.error(err);
+        status.textContent = "Render failed — check server is running.";
+        alert("Render failed: " + err.message);
+      } finally {
+        renderBtn.disabled = false;
+      }
+    }
 
-        renderBtn.disabled = true;
-        status.textContent =
-          `Rendering ${items.length} ranks...`;
-
-        try {
-
-          const response =
-            await fetch("/render", {
-              method: "POST",
-              body: formData
-            });
-
-          const data =
-            await response.json();
-
-          console.log(data);
-
-          if (!response.ok || !data.success) {
-
-            status.textContent =
-              "Render failed.";
-
-            alert(
-              "ERROR: " + (data.error || "Unknown error")
-            );
-
-            return;
-
-          }
-
-          status.textContent = "Render complete!";
-          alert("Render complete!");
-
-          window.open(
-            data.url || ("/" + data.video),
-            "_blank"
-          );
-
-        } catch (err) {
-
-          console.error(err);
-
-          status.textContent =
-            "Render failed â€” check server is running.";
-
-          alert("Render failed: " + err.message);
-
-        } finally {
-          renderBtn.disabled = false;
-        }
-
-      };
-
+    // Start with one section
+    addSection(10);
   </script>
 
 </body>
-
 </html>
