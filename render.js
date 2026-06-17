@@ -209,8 +209,7 @@ function render(data, output) {
       const origX = Math.round(slotCenterX - itemOrigW / 2);
 
       // ── Scale images ────────────────────────────────────────────────
-      filters.push(scalePad(`${cutInput}:v`, `cutScaled${idx}`, IMG_W, IMG_H, "black@0"));
-      filters.push(`[cutScaled${idx}]format=rgba,geq=r=0:g=0:b=0:a=alpha(X\\,Y)[cut${idx}]`);
+      filters.push(scalePad(`${cutInput}:v`, `cut${idx}`, IMG_W, IMG_H, "black@0"));
       filters.push(scalePad(`${origInput}:v`, `orig${idx}`, itemOrigW, itemOrigH));
       filters.push(scalePad(`${iconInput}:v`, `rboxIconScaled${idx}`, RBOX_ICON_SIZE, RBOX_ICON_SIZE));
 

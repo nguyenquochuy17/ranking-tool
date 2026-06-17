@@ -1,70 +1,104 @@
-// processed/removeBackground.js
-const axios = require("axios");
-const fs = require("fs");           // Main fs for createReadStream
-const fsPromises = require("fs").promises;  // For async writeFile
+const fsPromises = require("fs").promises;
 const path = require("path");
-const FormData = require("form-data");
+const http = require("http");
 const sharp = require("sharp");
 
-async function removeBackground(imagePath) {
-  if (!imagePath) throw new Error("Image path is required");
 
-  try {
-    const formData = new FormData();
-    formData.append("image_file", fs.createReadStream(imagePath));
-    formData.append("size", "auto");
-    formData.append("type", "person");
+let modelServer = null;
+let modelServerPort = null;
 
-    const apiKey = process.env.REMOVE_BG_API_KEY;
 
-    if (!apiKey) {
-      throw new Error("REMOVE_BG_API_KEY is missing in .env file!");
-    }
+function startModelServer() {
+ if (modelServer) return Promise.resolve(modelServerPort);
 
-    const response = await axios({
-      method: "post",
-      url: "https://api.remove.bg/v1.0/removebg",
-      data: formData,
-      responseType: "arraybuffer",
-      headers: {
-        ...formData.getHeaders(),
-        "X-Api-Key": apiKey,
-      },
-      timeout: 20000,
-    });
 
-    const removedPath = path.join("uploads", `removed_${Date.now()}.png`);
-    await fsPromises.writeFile(removedPath, response.data);
+ const distPath = path.resolve(
+   require.resolve("@imgly/background-removal-node"),
+   "../../dist"
+ );
 
-    // Create black silhouette
-    const silhouettePath = path.join("uploads", `silhouette_${Date.now()}.png`);
 
-    await sharp(removedPath)
-      .extractChannel("alpha")
-      .threshold(1)
-      .negate()
-      .png()
-      .toFile(silhouettePath);
+ return new Promise((resolve, reject) => {
+   const fs = require("fs");
+   const server = http.createServer((req, res) => {
+     const filePath = path.join(distPath, req.url.split("?")[0]);
+     fs.readFile(filePath, (err, data) => {
+       if (err) {
+         res.writeHead(404);
+         res.end("Not found");
+         return;
+       }
+       res.writeHead(200);
+       res.end(data);
+     });
+   });
 
-    console.log(`✅ Background removed: ${silhouettePath}`);
 
-    return {
-      silhouette: silhouettePath,
-      transparent: removedPath
-    };
+   server.listen(0, "127.0.0.1", () => {
+     modelServer = server;
+     modelServerPort = server.address().port;
+     console.log(`📦 Model server started on port ${modelServerPort}`);
+     resolve(modelServerPort);
+   });
 
-  } catch (err) {
-    console.error("Remove.bg Error:", err.message);
-    
-    if (err.response?.status === 403) {
-      throw new Error("Invalid Remove.bg API Key");
-    }
-    if (err.response?.status === 429) {
-      throw new Error("Remove.bg rate limit exceeded");
-    }
 
-    throw new Error("Background removal failed: " + err.message);
-  }
+   server.on("error", reject);
+ });
 }
 
+
+async function removeBackground(imagePath) {
+ if (!imagePath) throw new Error("Image path is required");
+
+
+ const { removeBackground: imglyRemove } = require("@imgly/background-removal-node");
+
+
+ console.log("🖼️ Running local background removal (@imgly)...");
+
+
+ const port = await startModelServer();
+ const publicPath = `http://127.0.0.1:${port}/`;
+
+
+ const resultBlob = await imglyRemove(imagePath, {
+   publicPath,
+   model: "medium",
+   output: { format: "image/png", type: "foreground" },
+ });
+
+
+ const arrayBuffer = await resultBlob.arrayBuffer();
+ const removedPath = path.join("uploads", `removed_${Date.now()}.png`);
+ await fsPromises.writeFile(removedPath, Buffer.from(arrayBuffer));
+
+
+ // Build black silhouette from alpha channel using sharp
+ const silhouettePath = path.join("uploads", `silhouette_${Date.now()}.png`);
+ try {
+   await sharp(removedPath)
+     .extractChannel("alpha")
+     .threshold(1)
+     .negate()
+     .png()
+     .toFile(silhouettePath);
+ } catch (sharpErr) {
+   console.warn("⚠️ sharp silhouette failed, using transparent as fallback:", sharpErr.message);
+   await fsPromises.copyFile(removedPath, silhouettePath);
+ }
+
+
+ console.log(`✅ Background removed: ${silhouettePath}`);
+
+
+ return {
+   silhouette: silhouettePath,
+   transparent: removedPath,
+ };
+}
+
+
 module.exports = removeBackground;
+
+
+

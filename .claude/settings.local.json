@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node *)",
+      "Bash(ffmpeg -i /tmp/debug_test.mp4 -ss 7 -frames:v 1 /tmp/frame_t7.png -y)",
+      "Bash(ffmpeg -i /tmp/debug_test.mp4 -ss 22 -frames:v 1 /tmp/frame_t22.png -y)",
+      "Bash(python3 -c \"import rembg; print\\('rembg ok'\\)\")",
+      "Bash(pip3 show *)",
+      "Bash(pip3 list *)",
+      "Bash(pip3 install *)",
+      "Bash(npm install *)",
+      "Bash(npm list *)"
+    ]
+  }
+}
