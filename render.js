@@ -17,9 +17,14 @@ function escText(s, maxLen = 60) {
   return (s || "")
     .substring(0, maxLen)
     .replace(/\\n/g, "\n")
+    // ASCII apostrophe breaks ffmpeg quoting on Windows; U+2019 renders the same.
+    .replace(/'/g, "\u2019");
+}
+
+function quoteFilterText(s) {
+  return `'${String(s || "")
     .replace(/\\/g, "\\\\")
-    .replace(/'/g, "\\'")
-    .replace(/:/g, "\\:");
+    .replace(/:/g, "\\:")}'`;
 }
 
 function estimateTextWidth(str, fontSize) {
@@ -60,7 +65,7 @@ function multilineCentered({
     const y = startY + i * lineHeight;
     const tag = `${tagPrefix}${i}`;
     filterStrs.push(
-      `[${pf}]drawtext=text='${line}'${fa}:` +
+      `[${pf}]drawtext=text=${quoteFilterText(line)}${fa}:` +
       `x=max(${marginLeft}\\,${centerX}-text_w/2):y=${y}:` +
       `fontsize=${fontSize}:fontcolor=${fontcolor}:borderw=${borderw}:bordercolor=black:` +
       `enable='${enableExpr}'[${tag}]`
@@ -160,7 +165,7 @@ function render(data, output) {
 
     // ── Static chrome drawn once ─────────────────────────────────────
     filters.push(`[bg]drawbox=x=0:y=${BAR_Y}:w=${W}:h=${BAR_H}:color=black@0.85:t=fill[staticBar]`);
-    filters.push(`[staticBar]drawtext=text='RANK'${fa}:x=20:y=${textY}:fontsize=${FONT_SIZE}:fontcolor=white:borderw=2:bordercolor=black[staticRl]`);
+    filters.push(`[staticBar]drawtext=text=${quoteFilterText("RANK")}${fa}:x=20:y=${textY}:fontsize=${FONT_SIZE}:fontcolor=white:borderw=2:bordercolor=black[staticRl]`);
     filters.push(`[staticRl]drawbox=x=0:y=${RANK_BOX_TOP}:w=${LABEL_W}:h=${RANK_BOX_H}:color=black@0.85:t=fill[staticRankBox]`);
     filters.push(`[staticRankBox]drawbox=x=0:y=${BAR_Y}:w=${LABEL_W}:h=2:color=white@0.3:t=fill[staticBase]`);
 
@@ -224,7 +229,7 @@ function render(data, output) {
         );
         const numTag = `nm${idx}_${oi}`;
         filters.push(
-          `[${divTag}]drawtext=text='${other.rank}'${fa}:x=${nx}-text_w/2:y=${textY}:fontsize=${FONT_SIZE}:fontcolor=white:borderw=2:bordercolor=black[${numTag}]`
+          `[${divTag}]drawtext=text=${quoteFilterText(String(other.rank))}${fa}:x=${nx}-text_w/2:y=${textY}:fontsize=${FONT_SIZE}:fontcolor=white:borderw=2:bordercolor=black[${numTag}]`
         );
         pf = numTag;
       });
@@ -292,7 +297,7 @@ function render(data, output) {
 
       // ── Name text ────────────────────────────────────────────────────
       filters.push(
-        `[co${idx}]drawtext=text='${safeName}'${fa}:` +
+        `[co${idx}]drawtext=text=${quoteFilterText(safeName)}${fa}:` +
         `x=${slotCenterX}-text_w/2:y=${itemImgTopY - TEXT_FONT - (-20)}:` +
         `fontsize=${TEXT_FONT}:fontcolor=white:borderw=2:bordercolor=black:` +
         `enable='between(t,${tTextIn},${tTextOut})'[to${idx}]`
