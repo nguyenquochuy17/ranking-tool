@@ -131,7 +131,7 @@ function render(data, output) {
     const RANK_BOX_H   = IMG_H + 160;
     const RBOX_CENTER_X = LABEL_W / 2;
 
-    const RBOX_TEXT_MARGIN = 0;
+    const RBOX_TEXT_MARGIN = 2;
     const RBOX_CONTENT_W = LABEL_W - RBOX_TEXT_MARGIN * 2 + 15;
 
     const RBOX_TITLE_FONT = 22;
@@ -189,7 +189,7 @@ function render(data, output) {
 
       const safeName  = escText(item.name, 60);
       const safeTitle = escText(item.title, 40);
-      const safeDesc  = escText(item.description, 80);
+      const safeDesc  = escText(item.description, 120);
 
       const wrappedTitle = wrapText(safeTitle, RBOX_TITLE_FONT, RBOX_CONTENT_W);
       const wrappedDesc  = wrapText(safeDesc, RBOX_DESC_FONT, RBOX_CONTENT_W);
@@ -309,7 +309,7 @@ function render(data, output) {
       const origYExpr =
         `if(lt(t,${tOrigIn}),${-itemOrigH},` +
         `if(lt(t,${tOrigAnimEnd}),` +
-          `${origStartY}+${origSlide}*((t-${tOrigIn})/${ANIM_DUR}),` +
+          `${origStartY}+${origSlide}*(1-pow(1-((t-${tOrigIn})/${ANIM_DUR}),3)),` +
           `if(lt(t,${tOrigOut}),${itemOrigTopY},${-itemOrigH})))`;
 
       filters.push(
