@@ -28,7 +28,23 @@ function quoteFilterText(s) {
 }
 
 function estimateTextWidth(str, fontSize) {
-  return str.length * fontSize * 0.55;
+  return str.length * fontSize * 0.62;
+}
+
+function splitLongWord(word, fontSize, maxWidth) {
+  const chunks = [];
+  let current = "";
+  for (const ch of word) {
+    const test = current + ch;
+    if (current && estimateTextWidth(test, fontSize) > maxWidth) {
+      chunks.push(current);
+      current = ch;
+    } else {
+      current = test;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
 }
 
 function wrapText(text, fontSize, maxWidth) {
@@ -36,20 +52,40 @@ function wrapText(text, fontSize, maxWidth) {
   const lines = text.split("\n");
   const wrapped = [];
   for (const line of lines) {
-    const words = line.split(" ");
+    const words = line.split(/\s+/).filter(Boolean);
     let current = "";
     for (const word of words) {
-      const test = current ? `${current} ${word}` : word;
-      if (estimateTextWidth(test, fontSize) > maxWidth && current) {
-        wrapped.push(current);
-        current = word;
-      } else {
-        current = test;
+      const parts = estimateTextWidth(word, fontSize) > maxWidth
+        ? splitLongWord(word, fontSize, maxWidth)
+        : [word];
+
+      for (const part of parts) {
+        const test = current ? `${current} ${part}` : part;
+        if (estimateTextWidth(test, fontSize) > maxWidth && current) {
+          wrapped.push(current);
+          current = part;
+        } else {
+          current = test;
+        }
       }
     }
-    wrapped.push(current);
+    if (current) wrapped.push(current);
   }
   return wrapped.join("\n");
+}
+
+function clampWrappedText(text, fontSize, maxWidth, maxLines) {
+  const wrapped = wrapText(text, fontSize, maxWidth);
+  const lines = wrapped ? wrapped.split("\n") : [];
+  if (lines.length <= maxLines) return wrapped;
+
+  const kept = lines.slice(0, maxLines);
+  let last = kept[kept.length - 1] || "";
+  while (last.length > 3 && estimateTextWidth(`${last}...`, fontSize) > maxWidth) {
+    last = last.slice(0, -1);
+  }
+  kept[kept.length - 1] = `${last}...`;
+  return kept.join("\n");
 }
 
 function multilineCentered({
@@ -136,7 +172,6 @@ function render(data, output) {
 
     const RBOX_TITLE_FONT = 22;
     const RBOX_TITLE_Y = RANK_BOX_TOP + 35;
-    const RBOX_TITLE_LINE_HEIGHT = Math.round(RBOX_TITLE_FONT * 1.25);
     const RBOX_TITLE_ICON_GAP = 15;
 
     const RBOX_ICON_SIZE = Math.min(LABEL_W - 30, Math.round(RANK_BOX_H * 0.45));
@@ -191,16 +226,22 @@ function render(data, output) {
       const safeTitle = escText(item.title, 40);
       const safeDesc  = escText(item.description, 120);
 
-      const wrappedTitle = wrapText(safeTitle, RBOX_TITLE_FONT, RBOX_CONTENT_W);
-      const wrappedDesc  = wrapText(safeDesc, RBOX_DESC_FONT, RBOX_CONTENT_W);
+      const fittedTitle = clampWrappedText(safeTitle, RBOX_TITLE_FONT, RBOX_CONTENT_W, 3);
+      const titleLineHeight = Math.round(RBOX_TITLE_FONT * 1.25);
 
       // Icon sits a fixed gap below the title bottom
-      const titleLineCount = safeTitle ? wrappedTitle.split("\n").length : 0;
-      const titleBottomY = RBOX_TITLE_Y + titleLineCount * RBOX_TITLE_LINE_HEIGHT;
+      const titleLineCount = safeTitle ? fittedTitle.split("\n").length : 0;
+      const titleBottomY = RBOX_TITLE_Y + titleLineCount * titleLineHeight;
       const iconY = titleBottomY + RBOX_TITLE_ICON_GAP;
 
       const ICON_DESC_GAP = 40;
       const descY = iconY + RBOX_ICON_SIZE + ICON_DESC_GAP;
+      const descLineHeight = Math.round(RBOX_DESC_FONT * 1.25);
+      const descMaxLines = Math.max(
+        1,
+        Math.floor((RANK_BOX_TOP + RANK_BOX_H - descY - 12) / descLineHeight)
+      );
+      const fittedDesc = clampWrappedText(safeDesc, RBOX_DESC_FONT, RBOX_CONTENT_W, descMaxLines);
 
       const slotCenterX = Math.round(LABEL_W + slotW * idx + slotW / 2);
       const imgX  = Math.round(slotCenterX - IMG_W / 2);
@@ -238,7 +279,7 @@ function render(data, output) {
       {
         const { filterStrs, lastTag } = multilineCentered({
           inputTag: pf,
-          text: wrappedTitle,
+          text: fittedTitle,
           fa,
           fontSize: RBOX_TITLE_FONT,
           fontcolor: "#FFD700",
@@ -246,7 +287,7 @@ function render(data, output) {
           centerX: RBOX_CENTER_X,
           marginLeft: RBOX_TEXT_MARGIN,
           startY: RBOX_TITLE_Y,
-          lineHeight: RBOX_TITLE_LINE_HEIGHT,
+          lineHeight: titleLineHeight,
           enableExpr: `between(t,${tTextIn},${tBoxOut})`,
           tagPrefix: `rboxTitle${idx}_`,
         });
@@ -264,10 +305,9 @@ function render(data, output) {
 
       // ── Description ──────────────────────────────────────────────────
       if (safeDesc) {
-        const descLineHeight = Math.round(RBOX_DESC_FONT * 1.25);
         const { filterStrs, lastTag } = multilineCentered({
           inputTag: pf,
-          text: wrappedDesc,
+          text: fittedDesc,
           fa,
           fontSize: RBOX_DESC_FONT,
           fontcolor: "white",

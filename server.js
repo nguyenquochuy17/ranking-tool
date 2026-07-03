@@ -62,7 +62,7 @@ app.post("/render", upload.any(), async (req, res) => {
         let iconImage;
         if (iconFile) {
           console.log(`[server]   + icon: ${iconFile.originalname}`);
-          iconImage = await processIcon(iconFile.path);
+          iconImage = await processIcon(iconFile.path, 400, iconFile);
         } else {
           iconImage = await createBlankIcon();
         }
