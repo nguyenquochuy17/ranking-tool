@@ -116,6 +116,7 @@
     input[type="text"],
     input[type="number"],
     input[type="file"],
+    input[type="color"],
     textarea {
       display: block;
       width: 100%;
@@ -126,6 +127,12 @@
       color: white;
       font-size: 14px;
       font-family: Arial;
+    }
+
+    input[type="color"] {
+      height: 40px;
+      padding: 4px;
+      cursor: pointer;
     }
 
     input[type="number"] { width: 120px; }
@@ -209,7 +216,7 @@
     }
     .advanced-fields.open { display: block; }
 
-    .advanced-fields .fields-row { margin-top: 0; }
+    .advanced-fields .fields-row { margin-top: 0; margin-bottom: 12px; }
 
     .advanced-fields input[type="number"] { width: 100%; }
   </style>
@@ -315,6 +322,11 @@
             <label class="field-label">Image</label>
             <input type="file" accept="image/*" class="image-input" />
           </div>
+
+          <div class="field-full">
+            <label class="field-label">Removed Background Image (Optional)</label>
+            <input type="file" accept="image/png,image/webp,image/*" class="removed-bg-input" />
+          </div>
           <div>
             <label class="field-label">Name</label>
             <input type="text" placeholder="Character name" class="name-input" />
@@ -348,6 +360,12 @@
               <label class="field-label">Original image scale (%)</label>
               <input type="number" value="100" min="10" max="300" class="orig-scale-input" placeholder="100" />
               <span style="font-size:11px;color:#666;display:block;margin-top:4px">100 = default size</span>
+            </div>
+          </div>
+          <div class="fields-row">
+            <div class="field-full">
+              <label class="field-label">District Level (Subtitle) Color</label>
+              <input type="color" value="#ffffff" class="subtitle-color-input" />
             </div>
           </div>
         </div>
@@ -384,8 +402,8 @@
       if (!ranks.length) {
         rangeEl.textContent = "";
       } else {
-        const maxR = Math.max(...ranks);
-        const minR = Math.min(...ranks);
+        maxR = Math.max(...ranks);
+        minR = Math.min(...ranks);
         rangeEl.textContent = maxR === minR ? `— Rank ${maxR}` : `— Ranks ${maxR} → ${minR}`;
       }
     }
@@ -415,13 +433,21 @@
             formData.append(`icon_${globalItemIndex}`, iconInput.files[0]);
           }
 
+          const removedBgInput = div.querySelector(".removed-bg-input");
+          if (removedBgInput && removedBgInput.files[0]) {
+            formData.append(`removedBg_${globalItemIndex}`, removedBgInput.files[0]);
+          }
+          
+          const subColor = div.querySelector(".subtitle-color-input")?.value || "#ffffff";
+
           sectionItems.push({
-            name:        (div.querySelector(".name-input")?.value.trim())  || "Unnamed",
-            title:       (div.querySelector(".title-input")?.value.trim()) || "",
+            name:         (div.querySelector(".name-input")?.value.trim())  || "Unnamed",
+            title:        (div.querySelector(".title-input")?.value.trim()) || "",
             description: (div.querySelector(".desc-input")?.value.trim())  || "",
             rank:        parseInt(div.querySelector(".rank-input")?.value, 10) || 1,
             silOffset:   parseInt(div.querySelector(".sil-offset-input")?.value, 10) || 0,
             origScale:   parseFloat(div.querySelector(".orig-scale-input")?.value) || 100,
+            subtitleColor: subColor.replace("#", "0x")
           });
 
           globalItemIndex++;
@@ -467,7 +493,6 @@
       }
     }
 
-    // Start with one section
     addSection(10);
   </script>
 

@@ -3,19 +3,46 @@ const fs = require("fs");
 const sharp = require("sharp");
 const { removeBackground } = require("@imgly/background-removal-node");
 
-async function processImage(inputPath) {
+async function processImage(inputPath, removedBgPath = null) {
   const outputPath = path.join("uploads", `processed_${Date.now()}.png`);
 
-  const imageData = fs.readFileSync(inputPath);
-  const ext = path.extname(inputPath).toLowerCase();
-  const mime = ext === ".png" ? "image/png" : ext === ".webp" ? "image/webp" : "image/jpeg";
-  const blob = new Blob([imageData], { type: mime });
+  let buf;
 
-  const resultBlob = await removeBackground(blob);
-  const buf = Buffer.from(await resultBlob.arrayBuffer());
+  // ===============================
+  // Use manually provided transparent PNG if available
+  // ===============================
+  if (removedBgPath) {
+    console.log("[processImage] Using provided removed background image");
+    buf = fs.readFileSync(removedBgPath);
+  } else {
+    console.log("[processImage] Removing background using IMG.LY");
 
-  // Zero out RGB channels to make a black silhouette, preserve alpha
-  const { data, info } = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const imageData = fs.readFileSync(inputPath);
+
+    const ext = path.extname(inputPath).toLowerCase();
+    const mime =
+      ext === ".png"
+        ? "image/png"
+        : ext === ".webp"
+        ? "image/webp"
+        : "image/jpeg";
+
+    const blob = new Blob([imageData], { type: mime });
+
+    const resultBlob = await removeBackground(blob);
+    buf = Buffer.from(await resultBlob.arrayBuffer());
+  }
+
+  // ===============================
+  // Existing silhouette generation
+  // (unchanged)
+  // ===============================
+  const { data, info } = await sharp(buf)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  // Make silhouette black while preserving alpha
   for (let i = 0; i < data.length; i += 4) {
     data[i] = 0;
     data[i + 1] = 0;
@@ -25,7 +52,12 @@ async function processImage(inputPath) {
   await sharp(data, { raw: info })
     .resize(512, 512, {
       fit: "contain",
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
+      background: {
+        r: 0,
+        g: 0,
+        b: 0,
+        alpha: 0,
+      },
     })
     .png()
     .toFile(outputPath);
@@ -41,14 +73,20 @@ async function processIcon(inputPath, size = 400) {
 
   const ext = path.extname(inputPath).toLowerCase();
 
-  const input = ext === ".svg"
-    ? sharp(inputPath, { density: 300 })
-    : sharp(inputPath);
+  const input =
+    ext === ".svg"
+      ? sharp(inputPath, { density: 300 })
+      : sharp(inputPath);
 
   await input
     .resize(size, size, {
       fit: "contain",
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
+      background: {
+        r: 0,
+        g: 0,
+        b: 0,
+        alpha: 0,
+      },
     })
     .png()
     .toFile(outputPath);
@@ -67,7 +105,12 @@ async function createBlankIcon(size = 10) {
       width: size,
       height: size,
       channels: 4,
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
+      background: {
+        r: 0,
+        g: 0,
+        b: 0,
+        alpha: 0,
+      },
     },
   })
     .png()
@@ -76,4 +119,8 @@ async function createBlankIcon(size = 10) {
   return path.resolve(outputPath);
 }
 
-module.exports = { processImage, processIcon, createBlankIcon };
+module.exports = {
+  processImage,
+  processIcon,
+  createBlankIcon,
+};

@@ -5,6 +5,18 @@ const fs = require("fs");
 
 ffmpeg.setFfmpegPath(ffmpegStatic);
 
+function splitHtmlTags(str) {
+  // Matches text BEFORE <b>, the text INSIDE <b></b>, and everything AFTER </b>
+  const match = str.match(/^([\s\S]*?)<b>([\s\S]*?)<\/b>([\s\S]*)$/i);
+  if (match) {
+    return {
+      before: match[1],
+      boldText: match[2],
+      after: match[3]
+    };
+  }
+  return null;
+}
 function scalePad(inputTag, outputTag, W, H, bgColor = "black@0") {
   return (
     `[${inputTag}]scale=w=${W}:h=${H}:force_original_aspect_ratio=decrease,` +
@@ -335,14 +347,73 @@ function render(data, output) {
         `[${pf}][cut${idx}]overlay=x=${imgX}:y='${cutYExpr}'[co${idx}]`
       );
 
-      // ── Name text ────────────────────────────────────────────────────
-      filters.push(
-        `[co${idx}]drawtext=text=${quoteFilterText(safeName)}${fa}:` +
-        `x=${slotCenterX}-text_w/2:y=${itemImgTopY - TEXT_FONT - (-20)}:` +
-        `fontsize=${TEXT_FONT}:fontcolor=white:borderw=2:bordercolor=black:` +
-        `enable='between(t,${tTextIn},${tTextOut})'[to${idx}]`
-      );
+// ── Name text (HTML Tag Parser Fix - Tight Snap) ─────────────────
+      const parsedName = splitHtmlTags(item.name || "");
 
+      if (parsedName) {
+        const txtBefore = escText(parsedName.before, 40);
+        const txtBold   = escText(parsedName.boldText, 20);
+        const txtAfter  = escText(parsedName.after, 40);
+
+        const tagLabel = `nameLabel${idx}`;
+        const tagBold  = `nameBold${idx}`;
+
+        // ┌─────────────────── PLACE THE NEW LOGIC HERE ───────────────────┐
+        // Count skinny characters vs actual empty space bars
+        const spaces      = (txtBefore.match(/ /g) || []).length;
+        const punctuation = (txtBefore.match(/[:il1|]/g) || []).length;
+        const normalChars = txtBefore.length - spaces - punctuation;
+        
+        // Precision pixel width tracking (Giving spaces a standard full-width padding weight)
+        const preciseWidthBefore = (normalChars * TEXT_FONT * 0.54) + (spaces * TEXT_FONT * 0.35) + (punctuation * TEXT_FONT * 0.25);
+        const preciseWidthBold   = txtBold.length * (TEXT_FONT + 2) * 0.6;
+        const combinedWidth      = preciseWidthBefore + preciseWidthBold;
+
+        // Establish perfect mathematical midpoint alignment
+        const layoutStartX = Math.round(slotCenterX - (combinedWidth / 2));
+        const layoutBoldX  = Math.round(layoutStartX + preciseWidthBefore);
+        // └─────────────────────────────────────────────────────────────────┘
+
+        // Line 1 Part A: Base Prefix
+        filters.push(
+          `[co${idx}]drawtext=text=${quoteFilterText(txtBefore)}${fa}:` +
+          `x=${layoutStartX}:y=${itemImgTopY - TEXT_FONT - 30}:` +
+          `fontsize=${TEXT_FONT}:fontcolor=white:borderw=2:bordercolor=black:` +
+          `enable='between(t,${tTextIn},${tTextOut})'[${tagLabel}]`
+        );
+
+        // Line 1 Part B: Gold Value locked perfectly flush right next to it
+        filters.push(
+          `[${tagLabel}]drawtext=text=${quoteFilterText(txtBold)}${fa}:` +
+          `x=${layoutBoldX}:y=${itemImgTopY - TEXT_FONT - 32}:` +
+          `fontsize=${TEXT_FONT + 2}:fontcolor=0xFFD700:borderw=3:bordercolor=black:` +
+          `enable='between(t,${tTextIn},${tTextOut})'[${tagBold}]`
+        );
+
+              // Line 2: Subtitle / After text
+        if (txtAfter.trim()) {
+          const cleanAfter = txtAfter.replace(/^\n/, "");
+          
+          // Uses the color value passed from server.js, defaults to white
+          const subColor = item.subtitleColor || "white";
+
+          filters.push(
+            `[${tagBold}]drawtext=text=${quoteFilterText(cleanAfter)}${fa}:` +
+            `x=${slotCenterX}-text_w/2:y=${itemImgTopY - 15}:` + 
+            `fontsize=${TEXT_FONT}:fontcolor=${subColor}:borderw=2:bordercolor=black:` +
+            `enable='between(t,${tTextIn},${tTextOut})'[to${idx}]`
+          );
+        }
+      } else {
+        // Fallback standard text processing if no <b> tags were typed in
+        const fallbackName = escText(item.name, 60);
+        filters.push(
+          `[co${idx}]drawtext=text=${quoteFilterText(fallbackName)}${fa}:` +
+          `x=${slotCenterX}-text_w/2:y=${itemImgTopY - TEXT_FONT - 30}:` +
+          `fontsize=${TEXT_FONT}:fontcolor=white:borderw=2:bordercolor=black:` +
+          `enable='between(t,${tTextIn},${tTextOut})'[to${idx}]`
+        );
+      }
       // ── Original image slides down from above, hides off-screen after window ──
       const origStartY = itemOrigTopY - itemOrigH;
       const origSlide  = itemOrigTopY - origStartY;
