@@ -165,9 +165,9 @@ function render(data, output) {
     const IMG_H = Math.round(IMG_W * 1.35);
     const IMG_TOP_Y = BAR_Y - IMG_H - (-60);
 
-    // ── Original image ────────────────────────────────────────────────
-    const ORIG_W = Math.round(IMG_W * 0.85);
-    const ORIG_H = Math.round(IMG_H * 0.85);
+    // ── Original image (Resized to 2/5 width and 1.5/3 height of screen) ──
+    const ORIG_W = 512; // 2/5 of 1280
+    const ORIG_H = 330; // 1.5/3 (half) of 720
     const ORIG_TOP_Y = IMG_TOP_Y - ORIG_H - (-10);
 
     // ── Name text (above the silhouette) ─────────────────────────────
@@ -258,13 +258,44 @@ function render(data, output) {
       const slotCenterX = Math.round(LABEL_W + slotW * idx + slotW / 2);
       const imgX  = Math.round(slotCenterX - IMG_W / 2);
 
+      // Per-item 
       // Per-item adjustments
       const itemImgTopY = IMG_TOP_Y - (item.silOffset || 0);
       const scale = (item.origScale || 100) / 100;
+      
+      // Applies your new big base dimensions multiplied by user custom scale factor
       const itemOrigW = Math.round(ORIG_W * scale);
       const itemOrigH = Math.round(ORIG_H * scale);
-      const itemOrigTopY = itemImgTopY - itemOrigH - (-10);
-      const origX = Math.round(slotCenterX - itemOrigW / 2);
+      
+      const itemOrigTopY = 30;
+      // ── DYNAMIC RANKING ALIGNMENT LOGIC ──
+      let origX;
+      
+      if (n === 3) {
+        // If there are exactly 3 items in the section
+        if (idx === 0) {
+          // Item 1: Align Left (with a 40px margin from the rank box)
+          origX = LABEL_W + 40;
+        } else if (idx === 1) {
+          // Item 2: Align Center
+          origX = Math.round(slotCenterX - itemOrigW / 2);
+        } else {
+          // Item 3: Align Right (with a 40px margin from the screen edge)
+          origX = W - itemOrigW - 40;
+        }
+      } else if (n === 4) {
+        // If there are exactly 4 items in the section
+        if (idx === 0 || idx === 1) {
+          // Items 1 and 2: Align Left
+          origX = LABEL_W + 40;
+        } else {
+          // Items 3 and 4: Align Right
+          origX = W - itemOrigW - 40;
+        }
+      } else {
+        // Fallback default: Center above the character slot if item count is different
+        origX = Math.round(slotCenterX - itemOrigW / 2);
+      }
 
       // ── Scale images ────────────────────────────────────────────────
       filters.push(scalePad(`${cutInput}:v`, `cut${idx}`, IMG_W, IMG_H, "black@0"));
