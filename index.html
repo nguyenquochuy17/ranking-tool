@@ -229,6 +229,11 @@
   <div class="top-actions">
     <button class="btn-add-section" type="button" onclick="addSection()">+ Add Section</button>
     <button class="btn-render" type="button" id="renderBtn" onclick="submitRender()">Render Video</button>
+    <!-- Hidden native file input -->
+    <input type="file" id="importCsvFileInput" accept=".csv" style="display: none;" onchange="handleCsvImport(event)">
+
+    <!-- Clean UI Button that triggers the file input -->
+    <button id="importCsvBtn" onclick="document.getElementById('importCsvFileInput').click()">Import Data from Excel</button>
   </div>
 
   <div id="sections"></div>
@@ -374,6 +379,145 @@
       container.appendChild(div);
       updateSectionHeader(sid);
     }
+
+    function handleCsvImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const text = e.target.result;
+        
+        // 1. Parse CSV lines while respecting quotes
+        const rows = parseCsvText(text);
+        if (rows.length <= 1) {
+            alert("The uploaded file seems to be empty or missing headers.");
+            return;
+        }
+
+        const headers = rows[0].map(h => h.trim().toLowerCase());
+        
+        // Map headers to their column positions
+        const idxSection = headers.indexOf("section index");
+        const idxRank = headers.indexOf("rank");
+        const idxName = headers.indexOf("name");
+        const idxTitle = headers.indexOf("title");
+        const idxDesc = headers.indexOf("description");
+        const idxColor = headers.indexOf("district color");
+
+        if (idxName === -1 || idxTitle === -1) {
+            alert("Invalid template! Make sure your columns contain at least 'Name' and 'Title'.");
+            return;
+        }
+
+        // 2. Rebuild the sections data structure
+        const importedSectionsMap = {};
+
+        for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (row.length < 2 || !row[idxName]) continue; // Skip empty rows
+
+            // Group by section identifier (e.g., "Section 1", "Section 2")
+            const sectionName = idxSection !== -1 && row[idxSection] ? row[idxSection].trim() : "Section 1";
+            
+            if (!importedSectionsMap[sectionName]) {
+                importedSectionsMap[sectionName] = { items: [] };
+            }
+
+            // Build individual item block properties
+            importedSectionsMap[sectionName].items.push({
+                rank: idxRank !== -1 ? parseInt(row[idxRank]) || 0 : 0,
+                name: row[idxName] || "",
+                title: row[idxTitle] || "",
+                description: idxDesc !== -1 ? row[idxDesc] : "",
+                subtitleColor: idxColor !== -1 && row[idxColor] ? row[idxColor] : "#FFFFFF",
+                // Leave file placeholders empty for manual UI uploads
+                imageFile: null,
+                removedBgFile: null,
+                iconFile: null
+            });
+        }
+
+        // Convert the map back into a flat layout array
+        window.sections = Object.values(importedSectionsMap);
+
+        // 3. Trigger your UI redraw function
+     // 3. Clear existing UI and inject parsed template data instantly
+        document.getElementById("sections").innerHTML = ""; // Clear default starting cards
+        sectionCount = 0; // Reset global tracking counters
+        itemCounters = {};
+
+        // Loop through and construct each parsed section
+        window.sections.forEach((section, index) => {
+            const sid = index + 1;
+            
+            // Re-initialize section template shell container elements
+            addSection(); 
+            
+            // The default addSection() helper adds a clean baseline item structure. 
+            // We empty it so we can push our explicit CSV table entries accurately.
+            document.getElementById(`items-${sid}`).innerHTML = "";
+            itemCounters[sid] = 0;
+
+            // Step through your item property states and assign values directly into UI nodes
+            section.items.forEach((item) => {
+                addItem(sid, item.rank);
+                
+                // Track dynamic incremental index bindings generated inside the DOM instance
+                const currentLocalNum = itemCounters[sid];
+                const itemContainer = document.querySelector(`.item[data-iid="${sid}_${currentLocalNum}"]`);
+                
+                if (itemContainer) {
+                    itemContainer.querySelector(".name-input").value = item.name;
+                    itemContainer.querySelector(".title-input").value = item.title;
+                    itemContainer.querySelector(".desc-input").value = item.description;
+                    
+                    // Convert Hex 0x format seamlessly back into standard browser Color Picker string syntax
+                    const pickerColor = item.subtitleColor.startsWith("0x") 
+                        ? item.subtitleColor.replace("0x", "#") 
+                        : item.subtitleColor;
+                    
+                    itemContainer.querySelector(".subtitle-color-input").value = pickerColor;
+                }
+            });
+            
+            updateSectionHeader(sid);
+        });
+
+        alert("Data imported successfully! All slots are filled. You can now select your image files.");
+    };
+
+    reader.readAsText(file);
+    // Reset file input value so users can upload the same file again if edited
+    event.target.value = "";
+}
+
+// Robust helper function to handle commas embedded inside quotes safely
+function parseCsvText(text) {
+    const lines = [];
+    let row = [""];
+    let inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        const next = text[i+1];
+
+        if (c === '"') {
+            if (inQuotes && next === '"') { row[row.length - 1] += '"'; i++; } // Handled double quotes
+            else { inQuotes = !inQuotes; }
+        } else if (c === ',' && !inQuotes) {
+            row.push('');
+        } else if ((c === '\r' || c === '\n') && !inQuotes) {
+            if (c === '\r' && next === '\n') { i++; }
+            lines.push(row);
+            row = [''];
+        } else {
+            row[row.length - 1] += c;
+        }
+    }
+    if (row.length > 1 || row[0] !== '') lines.push(row);
+    return lines;
+}
 
     function toggleAdvanced(iid) {
       const panel = document.getElementById(`adv-${iid}`);
