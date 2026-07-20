@@ -176,7 +176,7 @@ function render(data, output) {
 
     // ── The vertical black box above "RANK" ──────────────────────────
     const RANK_BOX_TOP = IMG_TOP_Y - 60 - 160;
-    const RANK_BOX_H   = IMG_H + 160;
+    const RANK_BOX_H = IMG_H + 160;
     const RBOX_CENTER_X = LABEL_W / 2;
 
     const RBOX_TEXT_MARGIN = 2;
@@ -193,7 +193,8 @@ function render(data, output) {
 
     const ANIM_DUR = 0.5;
 
-    const SEG = 12;
+    // ── TIMING CHANGE: One segment now lasts 9 seconds total (3s Intro/Name + 2s Image + transition buffer) ──
+    const SEG = 9;
     const totalDuration = n * SEG + 2.5;
 
     const command = ffmpeg();
@@ -219,24 +220,26 @@ function render(data, output) {
     let prev = "staticBase";
 
     sorted.forEach((item, idx) => {
-      const cutInput  = idx * 3 + 1;
+      const cutInput = idx * 3 + 1;
       const origInput = idx * 3 + 2;
       const iconInput = idx * 3 + 3;
 
-      const tStart   = idx * SEG;
-      const tEnd     = totalDuration;
-      const tTextIn  = tStart + 3;
+      const tStart = idx * SEG;
+      const tEnd = totalDuration;
+      const tTextIn = tStart + 3;
       const tTextOut = tStart + 7;
-      const tOrigIn  = tStart + 7;
-      const tOrigOut = tStart + 12;
-      const tBoxOut  = tOrigOut;
+      const tOrigIn = tStart + 7;
 
-      const tCutAnimEnd  = tStart + ANIM_DUR;
+      // ── TIMING CHANGE: tOrigOut goes from tStart + 12 to tStart + 9 (Exactly 2 seconds of full-color display) ──
+      const tOrigOut = tStart + 9;
+      const tBoxOut = tOrigOut;
+
+      const tCutAnimEnd = tStart + ANIM_DUR;
       const tOrigAnimEnd = tOrigIn + ANIM_DUR;
 
-      const safeName  = escText(item.name, 60);
+      const safeName = escText(item.name, 60);
       const safeTitle = escText(item.title, 40);
-      const safeDesc  = escText(item.description, 120);
+      const safeDesc = escText(item.description, 120);
 
       const fittedTitle = clampWrappedText(safeTitle, RBOX_TITLE_FONT, RBOX_CONTENT_W, 3);
       const titleLineHeight = Math.round(RBOX_TITLE_FONT * 1.25);
@@ -256,21 +259,20 @@ function render(data, output) {
       const fittedDesc = clampWrappedText(safeDesc, RBOX_DESC_FONT, RBOX_CONTENT_W, descMaxLines);
 
       const slotCenterX = Math.round(LABEL_W + slotW * idx + slotW / 2);
-      const imgX  = Math.round(slotCenterX - IMG_W / 2);
+      const imgX = Math.round(slotCenterX - IMG_W / 2);
 
-      // Per-item 
       // Per-item adjustments
       const itemImgTopY = IMG_TOP_Y - (item.silOffset || 0);
       const scale = (item.origScale || 100) / 100;
-      
+
       // Applies your new big base dimensions multiplied by user custom scale factor
       const itemOrigW = Math.round(ORIG_W * scale);
       const itemOrigH = Math.round(ORIG_H * scale);
-      
+
       const itemOrigTopY = 30;
       // ── DYNAMIC RANKING ALIGNMENT LOGIC ──
       let origX;
-      
+
       if (n === 3) {
         // If there are exactly 3 items in the section
         if (idx === 0) {
@@ -371,39 +373,37 @@ function render(data, output) {
       const cutYExpr =
         `if(lt(t,${tStart}),${H},` +
         `if(lt(t,${tCutAnimEnd}),` +
-          `${BAR_Y}-${slideDistance}*((t-${tStart})/${ANIM_DUR}),` +
-          `${itemImgTopY}))`;
+        `${BAR_Y}-${slideDistance}*((t-${tStart})/${ANIM_DUR}),` +
+        `${itemImgTopY}))`;
 
       filters.push(
         `[${pf}][cut${idx}]overlay=x=${imgX}:y='${cutYExpr}'[co${idx}]`
       );
 
-// ── Name text (HTML Tag Parser Fix - Tight Snap) ─────────────────
+      // ── Name text (HTML Tag Parser Fix - Tight Snap) ─────────────────
       const parsedName = splitHtmlTags(item.name || "");
 
       if (parsedName) {
         const txtBefore = escText(parsedName.before, 40);
-        const txtBold   = escText(parsedName.boldText, 20);
-        const txtAfter  = escText(parsedName.after, 40);
+        const txtBold = escText(parsedName.boldText, 20);
+        const txtAfter = escText(parsedName.after, 40);
 
         const tagLabel = `nameLabel${idx}`;
-        const tagBold  = `nameBold${idx}`;
+        const tagBold = `nameBold${idx}`;
 
-        // ┌─────────────────── PLACE THE NEW LOGIC HERE ───────────────────┐
         // Count skinny characters vs actual empty space bars
-        const spaces      = (txtBefore.match(/ /g) || []).length;
+        const spaces = (txtBefore.match(/ /g) || []).length;
         const punctuation = (txtBefore.match(/[:il1|]/g) || []).length;
         const normalChars = txtBefore.length - spaces - punctuation;
-        
+
         // Precision pixel width tracking (Giving spaces a standard full-width padding weight)
         const preciseWidthBefore = (normalChars * TEXT_FONT * 0.54) + (spaces * TEXT_FONT * 0.35) + (punctuation * TEXT_FONT * 0.25);
-        const preciseWidthBold   = txtBold.length * (TEXT_FONT + 2) * 0.6;
-        const combinedWidth      = preciseWidthBefore + preciseWidthBold;
+        const preciseWidthBold = txtBold.length * (TEXT_FONT + 2) * 0.6;
+        const combinedWidth = preciseWidthBefore + preciseWidthBold;
 
         // Establish perfect mathematical midpoint alignment
         const layoutStartX = Math.round(slotCenterX - (combinedWidth / 2));
-        const layoutBoldX  = Math.round(layoutStartX + preciseWidthBefore);
-        // └─────────────────────────────────────────────────────────────────┘
+        const layoutBoldX = Math.round(layoutStartX + preciseWidthBefore);
 
         // Line 1 Part A: Base Prefix
         filters.push(
@@ -413,27 +413,43 @@ function render(data, output) {
           `enable='between(t,${tTextIn},${tTextOut})'[${tagLabel}]`
         );
 
+        // ─── ANIMATED COUNT-UP LOGIC FOR BOLD TEXT ───
+        const targetVal = parseInt(txtBold, 10);
+        let textExpression;
+
+        if (!isNaN(targetVal)) {
+          // Speed of the counter: 0.8 seconds to count up completely
+          const counterDur = 0.8;
+
+          // Added trunc() inside clip to shave off all decimals before displaying
+          textExpression = `'%{eif\\:trunc(clip((t-${tTextIn})*${targetVal}/${counterDur}\\,0\\,${targetVal}))\\:d}'`;
+        } else {
+          // Fallback to static text if the user typed words instead of a number in <b>
+          textExpression = quoteFilterText(txtBold);
+        }
+
         // Line 1 Part B: Gold Value locked perfectly flush right next to it
         filters.push(
-          `[${tagLabel}]drawtext=text=${quoteFilterText(txtBold)}${fa}:` +
+          `[${tagLabel}]drawtext=text=${textExpression}${fa}:` +
           `x=${layoutBoldX}:y=${itemImgTopY - TEXT_FONT - 32}:` +
           `fontsize=${TEXT_FONT + 2}:fontcolor=0xFFD700:borderw=3:bordercolor=black:` +
           `enable='between(t,${tTextIn},${tTextOut})'[${tagBold}]`
         );
 
-              // Line 2: Subtitle / After text
+    
+      // Line 2: Subtitle / After text
         if (txtAfter.trim()) {
           const cleanAfter = txtAfter.replace(/^\n/, "");
           
           // Uses the color value passed from server.js, defaults to white
           const subColor = item.subtitleColor || "white";
-
-          filters.push(
+              
+              filters.push(
             `[${tagBold}]drawtext=text=${quoteFilterText(cleanAfter)}${fa}:` +
             `x=${slotCenterX}-text_w/2:y=${itemImgTopY - 15}:` + 
-            `fontsize=${TEXT_FONT}:fontcolor=${subColor}:borderw=2:bordercolor=black:` +
+                `fontsize=${TEXT_FONT}:fontcolor=${subColor}:borderw=2:bordercolor=black:` +
             `enable='between(t,${tTextIn},${tTextOut})'[to${idx}]`
-          );
+              );
         }
       } else {
         // Fallback standard text processing if no <b> tags were typed in
@@ -444,15 +460,15 @@ function render(data, output) {
           `fontsize=${TEXT_FONT}:fontcolor=white:borderw=2:bordercolor=black:` +
           `enable='between(t,${tTextIn},${tTextOut})'[to${idx}]`
         );
-      }
+        }
       // ── Original image slides down from above, hides off-screen after window ──
       const origStartY = itemOrigTopY - itemOrigH;
       const origSlide  = itemOrigTopY - origStartY;
       const origYExpr =
         `if(lt(t,${tOrigIn}),${-itemOrigH},` +
         `if(lt(t,${tOrigAnimEnd}),` +
-          `${origStartY}+${origSlide}*(1-pow(1-((t-${tOrigIn})/${ANIM_DUR}),3)),` +
-          `if(lt(t,${tOrigOut}),${itemOrigTopY},${-itemOrigH})))`;
+        `${origStartY}+${origSlide}*(1-pow(1-((t-${tOrigIn})/${ANIM_DUR}),3)),` +
+        `if(lt(t,${tOrigOut}),${itemOrigTopY},${-itemOrigH})))`;
 
       filters.push(
         `[to${idx}][orig${idx}]overlay=x=${origX}:y='${origYExpr}'[oo${idx}]`

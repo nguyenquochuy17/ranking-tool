@@ -1,9 +1,12 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <title>Ranking Tool</title>
   <style>
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
 
     body {
       background: #111;
@@ -14,8 +17,16 @@
       margin: 0 auto;
     }
 
-    h2 { font-size: 36px; margin-bottom: 6px; }
-    .subtitle { color: #888; margin-bottom: 28px; font-size: 14px; }
+    h2 {
+      font-size: 36px;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      color: #888;
+      margin-bottom: 28px;
+      font-size: 14px;
+    }
 
     .section-card {
       background: #181818;
@@ -57,9 +68,16 @@
       cursor: pointer;
       margin-top: 0;
     }
-    .btn-remove-section:hover { background: #ff444422; border-color: #ff4444; color: #ff6666; }
 
-    .section-items { padding: 16px 20px 4px; }
+    .btn-remove-section:hover {
+      background: #ff444422;
+      border-color: #ff4444;
+      color: #ff6666;
+    }
+
+    .section-items {
+      padding: 16px 20px 4px;
+    }
 
     .item {
       background: #1e1e1e;
@@ -94,7 +112,10 @@
       line-height: 1;
       margin-top: 0;
     }
-    .btn-remove-item:hover { color: #ff6666; }
+
+    .btn-remove-item:hover {
+      color: #ff6666;
+    }
 
     .fields-row {
       display: grid;
@@ -102,7 +123,9 @@
       gap: 12px;
     }
 
-    .field-full { grid-column: 1 / -1; }
+    .field-full {
+      grid-column: 1 / -1;
+    }
 
     label.field-label {
       display: block;
@@ -135,9 +158,19 @@
       cursor: pointer;
     }
 
-    input[type="number"] { width: 120px; }
-    textarea { resize: vertical; }
-    input:focus, textarea:focus { outline: none; border-color: #ffcc00; }
+    input[type="number"] {
+      width: 120px;
+    }
+
+    textarea {
+      resize: vertical;
+    }
+
+    input:focus,
+    textarea:focus {
+      outline: none;
+      border-color: #ffcc00;
+    }
 
     .section-actions {
       display: flex;
@@ -155,7 +188,10 @@
       cursor: pointer;
       margin-top: 0;
     }
-    .btn-add-item:hover { background: #333; }
+
+    .btn-add-item:hover {
+      background: #333;
+    }
 
     .top-actions {
       display: flex;
@@ -176,7 +212,10 @@
       cursor: pointer;
       margin-top: 0;
     }
-    .btn-add-section:hover { opacity: 0.9; }
+
+    .btn-add-section:hover {
+      opacity: 0.9;
+    }
 
     .btn-render {
       background: #00cc66;
@@ -189,10 +228,21 @@
       cursor: pointer;
       margin-top: 0;
     }
-    .btn-render:hover { opacity: 0.9; }
-    .btn-render:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    #status { color: #888; font-size: 14px; margin-top: 10px; }
+    .btn-render:hover {
+      opacity: 0.9;
+    }
+
+    .btn-render:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    #status {
+      color: #888;
+      font-size: 14px;
+      margin-top: 10px;
+    }
 
     .advanced-toggle {
       margin-top: 10px;
@@ -206,7 +256,10 @@
       letter-spacing: 0.04em;
       text-transform: uppercase;
     }
-    .advanced-toggle:hover { color: #aaa; }
+
+    .advanced-toggle:hover {
+      color: #aaa;
+    }
 
     .advanced-fields {
       display: none;
@@ -214,17 +267,27 @@
       padding-top: 10px;
       border-top: 1px solid #2a2a2a;
     }
-    .advanced-fields.open { display: block; }
 
-    .advanced-fields .fields-row { margin-top: 0; margin-bottom: 12px; }
+    .advanced-fields.open {
+      display: block;
+    }
 
-    .advanced-fields input[type="number"] { width: 100%; }
+    .advanced-fields .fields-row {
+      margin-top: 0;
+      margin-bottom: 12px;
+    }
+
+    .advanced-fields input[type="number"] {
+      width: 100%;
+    }
   </style>
 </head>
+
 <body>
 
   <h2>Ranking Video Tool</h2>
-  <p class="subtitle">Create sections of ranking items (ranks 1–100). Each section becomes a segment in the final video, connected by fade transitions.</p>
+  <p class="subtitle">Create sections of ranking items (ranks 1–100). Each section becomes a segment in the final video,
+    connected by fade transitions.</p>
 
   <div class="top-actions">
     <button class="btn-add-section" type="button" onclick="addSection()">+ Add Section</button>
@@ -233,7 +296,8 @@
     <input type="file" id="importCsvFileInput" accept=".csv" style="display: none;" onchange="handleCsvImport(event)">
 
     <!-- Clean UI Button that triggers the file input -->
-    <button id="importCsvBtn" onclick="document.getElementById('importCsvFileInput').click()">Import Data from Excel</button>
+    <button id="importCsvBtn" onclick="document.getElementById('importCsvFileInput').click()">Import Data from
+      Excel</button>
   </div>
 
   <div id="sections"></div>
@@ -345,6 +409,14 @@
             <input type="text" placeholder="e.g. Best Villain" class="title-input" />
           </div>
           <div>
+            <label class="field-label">Image Label (e.g. Survival Rate: 5%)</label>
+            <input type="text" placeholder="e.g. Human survival change: 5%" class="orig-label-input" />
+          </div>
+          <div>
+            <label class="field-label">Containment Level</label>
+            <input type="text" placeholder="e.g. Easy, High Risk, Impossible" class="containment-input" />  
+          </div>
+          <div>
             <label class="field-label">Icon (image, optional)</label>
             <input type="file" accept="image/*" class="icon-input" />
           </div>
@@ -352,6 +424,7 @@
             <label class="field-label">Description (shown in RANK box)</label>
             <textarea class="desc-input" rows="2" placeholder="Short description..."></textarea>
           </div>
+          
         </div>
         <button class="advanced-toggle" type="button" onclick="toggleAdvanced('${iid}')">▸ Advanced</button>
         <div class="advanced-fields" id="adv-${iid}">
@@ -381,23 +454,24 @@
     }
 
     function handleCsvImport(event) {
-    const file = event.target.files[0];
-    if (!file) return;
+      const file = event.target.files[0];
+      if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = function(e) {
+      const reader = new FileReader();
+      reader.onload = function (e) {
         const text = e.target.result;
-        
+
         // 1. Parse CSV lines while respecting quotes
         const rows = parseCsvText(text);
         if (rows.length <= 1) {
-            alert("The uploaded file seems to be empty or missing headers.");
-            return;
+          alert("The uploaded file seems to be empty or missing headers.");
+          return;
         }
 
         const headers = rows[0].map(h => h.trim().toLowerCase());
-        
+
         // Map headers to their column positions
+        const idxOrigLabel = headers.indexOf("image label");
         const idxSection = headers.indexOf("section index");
         const idxRank = headers.indexOf("rank");
         const idxName = headers.indexOf("name");
@@ -406,118 +480,119 @@
         const idxColor = headers.indexOf("district color");
 
         if (idxName === -1 || idxTitle === -1) {
-            alert("Invalid template! Make sure your columns contain at least 'Name' and 'Title'.");
-            return;
+          alert("Invalid template! Make sure your columns contain at least 'Name' and 'Title'.");
+          return;
         }
 
         // 2. Rebuild the sections data structure
         const importedSectionsMap = {};
 
         for (let i = 1; i < rows.length; i++) {
-            const row = rows[i];
-            if (row.length < 2 || !row[idxName]) continue; // Skip empty rows
+          const row = rows[i];
+          if (row.length < 2 || !row[idxName]) continue; // Skip empty rows
 
-            // Group by section identifier (e.g., "Section 1", "Section 2")
-            const sectionName = idxSection !== -1 && row[idxSection] ? row[idxSection].trim() : "Section 1";
-            
-            if (!importedSectionsMap[sectionName]) {
-                importedSectionsMap[sectionName] = { items: [] };
-            }
+          // Group by section identifier (e.g., "Section 1", "Section 2")
+          const sectionName = idxSection !== -1 && row[idxSection] ? row[idxSection].trim() : "Section 1";
 
-            // Build individual item block properties
-            importedSectionsMap[sectionName].items.push({
-                rank: idxRank !== -1 ? parseInt(row[idxRank]) || 0 : 0,
-                name: row[idxName] || "",
-                title: row[idxTitle] || "",
-                description: idxDesc !== -1 ? row[idxDesc] : "",
-                subtitleColor: idxColor !== -1 && row[idxColor] ? row[idxColor] : "#FFFFFF",
-                // Leave file placeholders empty for manual UI uploads
-                imageFile: null,
-                removedBgFile: null,
-                iconFile: null
-            });
+          if (!importedSectionsMap[sectionName]) {
+            importedSectionsMap[sectionName] = { items: [] };
+          }
+
+          // Build individual item block properties
+          importedSectionsMap[sectionName].items.push({
+                  rank: idxRank !== -1 ? parseInt(row[idxRank]) || 0 : 0,
+                  name: row[idxName] || "",
+                  title: row[idxTitle] || "",
+                  description: idxDesc !== -1 ? row[idxDesc] : "",
+                  subtitleColor: idxColor !== -1 && row[idxColor] ? row[idxColor] : "#FFFFFF",
+                  origLabel: idxOrigLabel !== -1 && row[idxOrigLabel] ? row[idxOrigLabel] : "", // <-- ADD THIS LINE
+                  imageFile: null,
+                  removedBgFile: null,
+                  iconFile: null
+                });
         }
 
         // Convert the map back into a flat layout array
         window.sections = Object.values(importedSectionsMap);
 
         // 3. Trigger your UI redraw function
-     // 3. Clear existing UI and inject parsed template data instantly
+        // 3. Clear existing UI and inject parsed template data instantly
         document.getElementById("sections").innerHTML = ""; // Clear default starting cards
         sectionCount = 0; // Reset global tracking counters
         itemCounters = {};
 
         // Loop through and construct each parsed section
         window.sections.forEach((section, index) => {
-            const sid = index + 1;
-            
-            // Re-initialize section template shell container elements
-            addSection(); 
-            
-            // The default addSection() helper adds a clean baseline item structure. 
-            // We empty it so we can push our explicit CSV table entries accurately.
-            document.getElementById(`items-${sid}`).innerHTML = "";
-            itemCounters[sid] = 0;
+          const sid = index + 1;
 
-            // Step through your item property states and assign values directly into UI nodes
-            section.items.forEach((item) => {
-                addItem(sid, item.rank);
-                
-                // Track dynamic incremental index bindings generated inside the DOM instance
-                const currentLocalNum = itemCounters[sid];
-                const itemContainer = document.querySelector(`.item[data-iid="${sid}_${currentLocalNum}"]`);
-                
-                if (itemContainer) {
-                    itemContainer.querySelector(".name-input").value = item.name;
-                    itemContainer.querySelector(".title-input").value = item.title;
-                    itemContainer.querySelector(".desc-input").value = item.description;
-                    
-                    // Convert Hex 0x format seamlessly back into standard browser Color Picker string syntax
-                    const pickerColor = item.subtitleColor.startsWith("0x") 
-                        ? item.subtitleColor.replace("0x", "#") 
-                        : item.subtitleColor;
-                    
-                    itemContainer.querySelector(".subtitle-color-input").value = pickerColor;
-                }
-            });
-            
-            updateSectionHeader(sid);
+          // Re-initialize section template shell container elements
+          addSection();
+
+          // The default addSection() helper adds a clean baseline item structure. 
+          // We empty it so we can push our explicit CSV table entries accurately.
+          document.getElementById(`items-${sid}`).innerHTML = "";
+          itemCounters[sid] = 0;
+
+          // Step through your item property states and assign values directly into UI nodes
+          section.items.forEach((item) => {
+            addItem(sid, item.rank);
+
+            // Track dynamic incremental index bindings generated inside the DOM instance
+            const currentLocalNum = itemCounters[sid];
+            const itemContainer = document.querySelector(`.item[data-iid="${sid}_${currentLocalNum}"]`);
+
+            if (itemContainer) {
+              itemContainer.querySelector(".name-input").value = item.name;
+              itemContainer.querySelector(".title-input").value = item.title;
+              itemContainer.querySelector(".desc-input").value = item.description;
+              itemContainer.querySelector(".orig-label-input").value = item.origLabel || "";
+
+              // Convert Hex 0x format seamlessly back into standard browser Color Picker string syntax
+              const pickerColor = item.subtitleColor.startsWith("0x")
+                ? item.subtitleColor.replace("0x", "#")
+                : item.subtitleColor;
+
+              itemContainer.querySelector(".subtitle-color-input").value = pickerColor;
+            }
+          });
+
+          updateSectionHeader(sid);
         });
 
         alert("Data imported successfully! All slots are filled. You can now select your image files.");
-    };
+      };
 
-    reader.readAsText(file);
-    // Reset file input value so users can upload the same file again if edited
-    event.target.value = "";
-}
+      reader.readAsText(file);
+      // Reset file input value so users can upload the same file again if edited
+      event.target.value = "";
+    }
 
-// Robust helper function to handle commas embedded inside quotes safely
-function parseCsvText(text) {
-    const lines = [];
-    let row = [""];
-    let inQuotes = false;
+    // Robust helper function to handle commas embedded inside quotes safely
+    function parseCsvText(text) {
+      const lines = [];
+      let row = [""];
+      let inQuotes = false;
 
-    for (let i = 0; i < text.length; i++) {
+      for (let i = 0; i < text.length; i++) {
         const c = text[i];
-        const next = text[i+1];
+        const next = text[i + 1];
 
         if (c === '"') {
-            if (inQuotes && next === '"') { row[row.length - 1] += '"'; i++; } // Handled double quotes
-            else { inQuotes = !inQuotes; }
+          if (inQuotes && next === '"') { row[row.length - 1] += '"'; i++; } // Handled double quotes
+          else { inQuotes = !inQuotes; }
         } else if (c === ',' && !inQuotes) {
-            row.push('');
+          row.push('');
         } else if ((c === '\r' || c === '\n') && !inQuotes) {
-            if (c === '\r' && next === '\n') { i++; }
-            lines.push(row);
-            row = [''];
+          if (c === '\r' && next === '\n') { i++; }
+          lines.push(row);
+          row = [''];
         } else {
-            row[row.length - 1] += c;
+          row[row.length - 1] += c;
         }
+      }
+      if (row.length > 1 || row[0] !== '') lines.push(row);
+      return lines;
     }
-    if (row.length > 1 || row[0] !== '') lines.push(row);
-    return lines;
-}
 
     function toggleAdvanced(iid) {
       const panel = document.getElementById(`adv-${iid}`);
@@ -581,16 +656,18 @@ function parseCsvText(text) {
           if (removedBgInput && removedBgInput.files[0]) {
             formData.append(`removedBg_${globalItemIndex}`, removedBgInput.files[0]);
           }
-          
+
           const subColor = div.querySelector(".subtitle-color-input")?.value || "#ffffff";
 
           sectionItems.push({
-            name:         (div.querySelector(".name-input")?.value.trim())  || "Unnamed",
-            title:        (div.querySelector(".title-input")?.value.trim()) || "",
-            description: (div.querySelector(".desc-input")?.value.trim())  || "",
-            rank:        parseInt(div.querySelector(".rank-input")?.value, 10) || 1,
-            silOffset:   parseInt(div.querySelector(".sil-offset-input")?.value, 10) || 0,
-            origScale:   parseFloat(div.querySelector(".orig-scale-input")?.value) || 100,
+            name: (div.querySelector(".name-input")?.value.trim()) || "Unnamed",
+            title: (div.querySelector(".title-input")?.value.trim()) || "",
+            description: (div.querySelector(".desc-input")?.value.trim()) || "",
+            origLabel: (div.querySelector(".orig-label-input")?.value.trim()) || "",
+            containment: (div.querySelector(".containment-input")?.value.trim()) || "Unknown",
+            rank: parseInt(div.querySelector(".rank-input")?.value, 10) || 1,
+            silOffset: parseInt(div.querySelector(".sil-offset-input")?.value, 10) || 0,
+            origScale: parseFloat(div.querySelector(".orig-scale-input")?.value) || 100,
             subtitleColor: subColor.replace("#", "0x")
           });
 
@@ -609,7 +686,7 @@ function parseCsvText(text) {
       formData.append("sections", JSON.stringify(sectionsPayload));
 
       const renderBtn = document.getElementById("renderBtn");
-      const status    = document.getElementById("status");
+      const status = document.getElementById("status");
       renderBtn.disabled = true;
       const sWord = sectionsPayload.length === 1 ? "section" : "sections";
       status.textContent = `Rendering ${sectionsPayload.length} ${sWord} (${totalImages} items total)…`;
@@ -641,4 +718,5 @@ function parseCsvText(text) {
   </script>
 
 </body>
+
 </html>

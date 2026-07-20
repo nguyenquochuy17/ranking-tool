@@ -102,6 +102,8 @@ app.post("/render", upload.any(), async (req, res) => {
           name: meta.name || `Item ${globalIndex + 1}`,
           title: meta.title || "",
           description: meta.description || "",
+          origLabel: meta.origLabel || "",
+          containment: meta.containment || "",
           rank:
             parseInt(meta.rank, 10) ||
             imageFiles.length - globalIndex,
@@ -128,7 +130,7 @@ app.post("/render", upload.any(), async (req, res) => {
       console.log("[server] Single section, rendering directly");
       await render(processedSections[0], outputPath);
     } else {
-      const segDuration = n => n * 12 + 2.5;
+      const segDuration = n => n * 9 + 2.5; 
 
       for (let i = 0; i < processedSections.length; i++) {
         const segPath = path.join(
