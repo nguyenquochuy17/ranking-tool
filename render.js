@@ -380,79 +380,151 @@ function render(data, output) {
         `[${pf}][cut${idx}]overlay=x=${imgX}:y='${cutYExpr}'[co${idx}]`
       );
 
-      // ── Name text (HTML Tag Parser Fix - Tight Snap) ─────────────────
+   // ── Name text (HTML Tag Parser Fix - Dynamic Survival Color) ─────────────
       const parsedName = splitHtmlTags(item.name || "");
 
       if (parsedName) {
-        const txtBefore = escText(parsedName.before, 40);
+        const cleanBefore = parsedName.before.replace(/\\n/g, "");
         const txtBold = escText(parsedName.boldText, 20);
-        const txtAfter = escText(parsedName.after, 40);
+        
+        const normalizedAfter = parsedName.after.replace(/\\n/g, "\n");
+        const afterLines = normalizedAfter
+          .split("\n")
+          .map(l => escText(l.trim(), 40))
+          .filter(Boolean);
 
-        const tagLabel = `nameLabel${idx}`;
-        const tagBold = `nameBold${idx}`;
+        // Build allLines array, splitting the Survival line into label + value if it matches
+        const allLines = [];
+        
+        // Line 1: Threat Level
+        allLines.push({ type: 'boldPair', text: cleanBefore, boldText: txtBold });
 
-        // Count skinny characters vs actual empty space bars
-        const spaces = (txtBefore.match(/ /g) || []).length;
-        const punctuation = (txtBefore.match(/[:il1|]/g) || []).length;
-        const normalChars = txtBefore.length - spaces - punctuation;
+        afterLines.forEach((line, idx) => {
+          if (idx === 1 && line.toLowerCase().includes("survival")) {
+            // Match pattern like "Survival: 4%" or "Survival: 4"
+            const match = line.match(/^([\s\S]*?:\s*)([\d.]+)(%?)$/);
+            if (match) {
+              allLines.push({
+                type: 'splitSurvival',
+                label: match[1],       // "Survival: " (White)
+                valNum: parseFloat(match[2]),
+                percentSign: match[3]  // "%"
+              });
+              return;
+            }
+          }
+          // Default for other lines (e.g. City Destroyed: Tokyo)
+          allLines.push({
+            type: 'standard',
+            text: line,
+            color: item.subtitleColor || "white"
+          });
+        });
 
-        // Precision pixel width tracking (Giving spaces a standard full-width padding weight)
-        const preciseWidthBefore = (normalChars * TEXT_FONT * 0.54) + (spaces * TEXT_FONT * 0.35) + (punctuation * TEXT_FONT * 0.25);
-        const preciseWidthBold = txtBold.length * (TEXT_FONT + 2) * 0.6;
-        const combinedWidth = preciseWidthBefore + preciseWidthBold;
+        const lineSpacing = TEXT_FONT + 14;
+        const totalLinesCount = allLines.length;
+        let currentY = itemImgTopY - (totalLinesCount * lineSpacing) + 5;
+        let currentPf = `co${idx}`;
 
-        // Establish perfect mathematical midpoint alignment
-        const layoutStartX = Math.round(slotCenterX - (combinedWidth / 2));
-        const layoutBoldX = Math.round(layoutStartX + preciseWidthBefore);
+        allLines.forEach((itemLine, lineIdx) => {
+          const lineTag = `nameLine${idx}_${lineIdx}`;
 
-        // Line 1 Part A: Base Prefix
-        filters.push(
-          `[co${idx}]drawtext=text=${quoteFilterText(txtBefore)}${fa}:` +
-          `x=${layoutStartX}:y=${itemImgTopY - TEXT_FONT - 30}:` +
-          `fontsize=${TEXT_FONT}:fontcolor=white:borderw=2:bordercolor=black:` +
-          `enable='between(t,${tTextIn},${tTextOut})'[${tagLabel}]`
-        );
+          if (itemLine.type === 'boldPair') {
+            const tagLabel = `nameLabel${idx}`;
+            const tagBold = `nameBold${idx}`;
 
-        // ─── ANIMATED COUNT-UP LOGIC FOR BOLD TEXT ───
-        const targetVal = parseInt(txtBold, 10);
-        let textExpression;
+            const spaces = (itemLine.text.match(/ /g) || []).length;
+            const punctuation = (itemLine.text.match(/[:il1|]/g) || []).length;
+            const normalChars = itemLine.text.length - spaces - punctuation;
 
-        if (!isNaN(targetVal)) {
-          // Speed of the counter: 0.8 seconds to count up completely
-          const counterDur = 0.8;
+            const preciseWidthBefore = (normalChars * TEXT_FONT * 0.54) + (spaces * TEXT_FONT * 0.35) + (punctuation * TEXT_FONT * 0.25);
+            const preciseWidthBold = itemLine.boldText.length * (TEXT_FONT + 2) * 0.6;
+            const combinedWidth = preciseWidthBefore + preciseWidthBold;
 
-          // Added trunc() inside clip to shave off all decimals before displaying
-          textExpression = `'%{eif\\:trunc(clip((t-${tTextIn})*${targetVal}/${counterDur}\\,0\\,${targetVal}))\\:d}'`;
-        } else {
-          // Fallback to static text if the user typed words instead of a number in <b>
-          textExpression = quoteFilterText(txtBold);
-        }
+            const layoutStartX = Math.round(slotCenterX - (combinedWidth / 2));
+            const layoutBoldX = Math.round(layoutStartX + preciseWidthBefore);
 
-        // Line 1 Part B: Gold Value locked perfectly flush right next to it
-        filters.push(
-          `[${tagLabel}]drawtext=text=${textExpression}${fa}:` +
-          `x=${layoutBoldX}:y=${itemImgTopY - TEXT_FONT - 32}:` +
-          `fontsize=${TEXT_FONT + 2}:fontcolor=0xFFD700:borderw=3:bordercolor=black:` +
-          `enable='between(t,${tTextIn},${tTextOut})'[${tagBold}]`
-        );
+            filters.push(
+              `[${currentPf}]drawtext=text=${quoteFilterText(itemLine.text)}${fa}:` +
+              `x=${layoutStartX}:y=${currentY}:` +
+              `fontsize=${TEXT_FONT}:fontcolor=white:borderw=2:bordercolor=black:` +
+              `enable='between(t,${tTextIn},${tTextOut})'[${tagLabel}]`
+            );
 
-    
-      // Line 2: Subtitle / After text
-        if (txtAfter.trim()) {
-          const cleanAfter = txtAfter.replace(/^\n/, "");
-          
-          // Uses the color value passed from server.js, defaults to white
-          const subColor = item.subtitleColor || "white";
-              
-              filters.push(
-            `[${tagBold}]drawtext=text=${quoteFilterText(cleanAfter)}${fa}:` +
-            `x=${slotCenterX}-text_w/2:y=${itemImgTopY - 15}:` + 
-                `fontsize=${TEXT_FONT}:fontcolor=${subColor}:borderw=2:bordercolor=black:` +
-            `enable='between(t,${tTextIn},${tTextOut})'[to${idx}]`
-              );
-        }
+            const targetVal = parseInt(itemLine.boldText, 10);
+            let textExpression;
+            if (!isNaN(targetVal)) {
+              const counterDur = 0.8;
+              textExpression = `'%{eif\\:trunc(clip((t-${tTextIn})*${targetVal}/${counterDur}\\,0\\,${targetVal}))\\:d}'`;
+            } else {
+              textExpression = quoteFilterText(itemLine.boldText);
+            }
+
+            filters.push(
+              `[${tagLabel}]drawtext=text=${textExpression}${fa}:` +
+              `x=${layoutBoldX}:y=${currentY}:` +
+              `fontsize=${TEXT_FONT + 2}:fontcolor=0xFFD700:borderw=3:bordercolor=black:` +
+              `enable='between(t,${tTextIn},${tTextOut})'[${tagBold}]`
+            );
+            currentPf = tagBold;
+
+          } else if (itemLine.type === 'splitSurvival') {
+            const val = itemLine.valNum;
+            let valColor = "white";
+            if (val >= 80 && val <= 100) valColor = "#00FF00";      // Green
+            else if (val >= 60 && val <= 79) valColor = "#00FFFF"; // Cyan
+            else if (val >= 40 && val <= 59) valColor = "#FFA500"; // Orange
+            else if (val >= 20 && val <= 39) valColor = "#800080"; // Purple
+            else if (val >= 0 && val <= 19) valColor = "#FF0000";  // Red
+
+            // Separate label from the value, and put an explicit space before the value
+            const labelPart = itemLine.label.trim(); // "Survival:"
+            const valPart = ` ${itemLine.valNum}${itemLine.percentSign}`.replace(/%/g, "\\%"); // " 4%"
+
+            const labelW = labelPart.length * TEXT_FONT * 0.52;
+            const valW = valPart.replace(/\\%/, "%").length * TEXT_FONT * 0.52;
+            const totalW = labelW + valW;
+
+            const rowStartX = Math.round(slotCenterX - (totalW / 2));
+            const valStartX = Math.round(rowStartX + labelW);
+
+            const tagLabelPart = `survivalLabel${idx}`;
+            
+            // Draw "Survival:" in white
+            filters.push(
+              `[${currentPf}]drawtext=text=${quoteFilterText(labelPart)}${fa}:` +
+              `x=${rowStartX}:y=${currentY}:` +
+              `fontsize=${TEXT_FONT}:fontcolor=white:borderw=2:bordercolor=black:` +
+              `enable='between(t,${tTextIn},${tTextOut})'[${tagLabelPart}]`
+            );
+
+            // Draw " 4%" with dynamic color right after with a guaranteed single space
+            filters.push(
+              `[${tagLabelPart}]drawtext=text=${quoteFilterText(valPart)}${fa}:` +
+              `x=${valStartX}:y=${currentY}:` +
+              `fontsize=${TEXT_FONT}:fontcolor=${valColor}:borderw=2:bordercolor=black:` +
+              `enable='between(t,${tTextIn},${tTextOut})'[${lineTag}]`
+            );
+            currentPf = lineTag;
+          } else {
+            // Standard lines (e.g. City Destroyed: Tokyo)
+            const escapedSubLine = itemLine.text.replace(/%/g, "\\%");
+
+            filters.push(
+              `[${currentPf}]drawtext=text=${quoteFilterText(escapedSubLine)}${fa}:` +
+              `x=${slotCenterX}-text_w/2:y=${currentY}:` +
+              `fontsize=${TEXT_FONT}:fontcolor=${itemLine.color}:borderw=2:bordercolor=black:` +
+              `enable='between(t,${tTextIn},${tTextOut})'[${lineTag}]`
+            );
+            currentPf = lineTag;
+          }
+
+          currentY += lineSpacing;
+        });
+
+        var finalNameTag = currentPf;
+
       } else {
-        // Fallback standard text processing if no <b> tags were typed in
         const fallbackName = escText(item.name, 60);
         filters.push(
           `[co${idx}]drawtext=text=${quoteFilterText(fallbackName)}${fa}:` +
@@ -460,7 +532,8 @@ function render(data, output) {
           `fontsize=${TEXT_FONT}:fontcolor=white:borderw=2:bordercolor=black:` +
           `enable='between(t,${tTextIn},${tTextOut})'[to${idx}]`
         );
-        }
+        var finalNameTag = `to${idx}`;
+      }
       // ── Original image slides down from above, hides off-screen after window ──
       const origStartY = itemOrigTopY - itemOrigH;
       const origSlide  = itemOrigTopY - origStartY;
@@ -471,7 +544,7 @@ function render(data, output) {
         `if(lt(t,${tOrigOut}),${itemOrigTopY},${-itemOrigH})))`;
 
       filters.push(
-        `[to${idx}][orig${idx}]overlay=x=${origX}:y='${origYExpr}'[oo${idx}]`
+        `[${finalNameTag}][orig${idx}]overlay=x=${origX}:y='${origYExpr}'[oo${idx}]`
       );
 
       prev = `oo${idx}`;
