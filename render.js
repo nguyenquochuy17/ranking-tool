@@ -171,7 +171,8 @@ function render(data, output) {
     const ORIG_TOP_Y = IMG_TOP_Y - ORIG_H - (-10);
 
     // ── Name text (above the silhouette) ─────────────────────────────
-    const TEXT_FONT = Math.max(16, Math.min(26, Math.floor(IMG_W * 0.12)));
+// Reduces multiplier from 0.12 to 0.08
+    const TEXT_FONT = Math.max(12, Math.min(20, Math.floor(IMG_W * 0.08)));
     const TEXT_Y = IMG_TOP_Y - TEXT_FONT - (-20);
 
     // ── The vertical black box above "RANK" ──────────────────────────
@@ -423,7 +424,7 @@ function render(data, output) {
 
         const lineSpacing = TEXT_FONT + 14;
         const totalLinesCount = allLines.length;
-        let currentY = itemImgTopY - (totalLinesCount * lineSpacing) + 5;
+        let currentY = itemImgTopY - (totalLinesCount * lineSpacing) + 40;
         let currentPf = `co${idx}`;
 
         allLines.forEach((itemLine, lineIdx) => {
@@ -467,8 +468,7 @@ function render(data, output) {
               `enable='between(t,${tTextIn},${tTextOut})'[${tagBold}]`
             );
             currentPf = tagBold;
-
-          } else if (itemLine.type === 'splitSurvival') {
+      } else if (itemLine.type === 'splitSurvival') {
             const val = itemLine.valNum;
             let valColor = "white";
             if (val >= 80 && val <= 100) valColor = "#00FF00";      // Green
@@ -477,7 +477,6 @@ function render(data, output) {
             else if (val >= 20 && val <= 39) valColor = "#800080"; // Purple
             else if (val >= 0 && val <= 19) valColor = "#FF0000";  // Red
 
-            // Separate label from the value, and put an explicit space before the value
             const labelPart = itemLine.label.trim(); // "Survival:"
             const valPart = ` ${itemLine.valNum}${itemLine.percentSign}`.replace(/%/g, "\\%"); // " 4%"
 
@@ -489,8 +488,10 @@ function render(data, output) {
             const valStartX = Math.round(rowStartX + labelW);
 
             const tagLabelPart = `survivalLabel${idx}`;
-            
-            // Draw "Survival:" in white
+            const valBaseTag = `valBase${idx}`;
+            const counterDur = 1.4;
+
+            // 1. Draw "Survival:" label normally
             filters.push(
               `[${currentPf}]drawtext=text=${quoteFilterText(labelPart)}${fa}:` +
               `x=${rowStartX}:y=${currentY}:` +
@@ -498,11 +499,12 @@ function render(data, output) {
               `enable='between(t,${tTextIn},${tTextOut})'[${tagLabelPart}]`
             );
 
-            // Draw " 4%" with dynamic color right after with a guaranteed single space
+            // 2. Draw the survival value text
             filters.push(
               `[${tagLabelPart}]drawtext=text=${quoteFilterText(valPart)}${fa}:` +
               `x=${valStartX}:y=${currentY}:` +
               `fontsize=${TEXT_FONT}:fontcolor=${valColor}:borderw=2:bordercolor=black:` +
+              `alpha='clip((t-${tTextIn})/${counterDur},0,1)':` +
               `enable='between(t,${tTextIn},${tTextOut})'[${lineTag}]`
             );
             currentPf = lineTag;
@@ -528,7 +530,7 @@ function render(data, output) {
         const fallbackName = escText(item.name, 60);
         filters.push(
           `[co${idx}]drawtext=text=${quoteFilterText(fallbackName)}${fa}:` +
-          `x=${slotCenterX}-text_w/2:y=${itemImgTopY - TEXT_FONT - 30}:` +
+          `x=${slotCenterX}-text_w/2:y=${itemImgTopY - TEXT_FONT - 60}:` +
           `fontsize=${TEXT_FONT}:fontcolor=white:borderw=2:bordercolor=black:` +
           `enable='between(t,${tTextIn},${tTextOut})'[to${idx}]`
         );
