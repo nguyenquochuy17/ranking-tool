@@ -40,7 +40,6 @@ app.post("/render", upload.any(), async (req, res) => {
       });
     }
 
-    // Support both old single-section format (items) and new multi-section format (sections)
     let sectionsMeta;
 
     if (req.body.sections) {
@@ -68,23 +67,35 @@ app.post("/render", upload.any(), async (req, res) => {
           `[server] Processing image ${globalIndex + 1}/${imageFiles.length}: ${file.originalname}`
         );
 
-        // Optional manually removed background image
-        const removedBgFile = allFiles.find(
+        // 1. Check for the optional 2nd image field
+        const secondFile = allFiles.find(
           f => f.fieldname === `removedBg_${globalIndex}`
         );
 
-        if (removedBgFile) {
-          console.log(
-            `[server]   + removed background: ${removedBgFile.originalname}`
-          );
+        let mainImagePath = file.path;
+        let bgRemovedPath = null;
+
+        if (secondFile) {
+          const ext = path.extname(secondFile.originalname).toLowerCase();
+
+          if (ext === ".png") {
+            // SCENARIO A: 2nd image is PNG -> treat as pre-cut background
+            console.log(`[server]   + Using 2nd image as pre-cut PNG: ${secondFile.originalname}`);
+            bgRemovedPath = secondFile.path;
+          } else {
+            // SCENARIO B: 2nd image is NOT PNG -> process 2nd image to remove its background
+            console.log(`[server]   + 2nd image is ${ext}, performing background removal on it: ${secondFile.originalname}`);
+            mainImagePath = secondFile.path; 
+          }
+        } else {
+          // SCENARIO C: No 2nd image -> process 1st image to remove its background
+          console.log(`[server]   + No 2nd image provided. Performing background removal on 1st image.`);
         }
 
-        const processedImage = await processImage(
-          file.path,
-          removedBgFile ? removedBgFile.path : null
-        );
+        // Run processImage according to the determined paths
+        const processedImage = await processImage(mainImagePath, bgRemovedPath);
 
-        // Optional icon
+        // Optional icon processing
         const iconFile = allFiles.find(
           f => f.fieldname === `icon_${globalIndex}`
         );
@@ -111,7 +122,7 @@ app.post("/render", upload.any(), async (req, res) => {
           origScale: parseFloat(meta.origScale) || 100,
           subtitleColor: meta.subtitleColor,
           processedImage,
-          originalImage: file.path,
+          originalImage: file.path, // 1st image ALWAYS remains the original top-down image
           iconImage
         });
 

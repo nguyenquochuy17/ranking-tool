@@ -431,43 +431,53 @@ function render(data, output) {
           const lineTag = `nameLine${idx}_${lineIdx}`;
 
           if (itemLine.type === 'boldPair') {
-            const tagLabel = `nameLabel${idx}`;
-            const tagBold = `nameBold${idx}`;
+          const tagLabel = `nameLabel${idx}`;
+  const tagBold = `nameBold${idx}`;
 
-            const spaces = (itemLine.text.match(/ /g) || []).length;
-            const punctuation = (itemLine.text.match(/[:il1|]/g) || []).length;
-            const normalChars = itemLine.text.length - spaces - punctuation;
+  const labelText = itemLine.text; // e.g. "Soldier Numbers: "
+  const boldText = itemLine.boldText; // e.g. "10000"
+  
+  // 1. Calculate realistic pixel widths
+  // Average standard font width is ~0.55 of font size per character; spaces are ~0.33
+  const spaces = (labelText.match(/ /g) || []).length;
+  const chars = labelText.length - spaces;
+  const labelWidth = Math.round((chars * TEXT_FONT * 0.55) + (spaces * TEXT_FONT * 0.33));
+  
+  // Estimate target width for counter to keep the combined string centered on screen
+  const counterWidth = Math.round(boldText.length * (TEXT_FONT + 2) * 0.6);
+  const totalWidth = labelWidth + counterWidth;
 
-            const preciseWidthBefore = (normalChars * TEXT_FONT * 0.54) + (spaces * TEXT_FONT * 0.35) + (punctuation * TEXT_FONT * 0.25);
-            const preciseWidthBold = itemLine.boldText.length * (TEXT_FONT + 2) * 0.6;
-            const combinedWidth = preciseWidthBefore + preciseWidthBold;
+  // Horizontal start position to keep label + counter centered
+  const startX = Math.round(slotCenterX - (totalWidth / 2));
+  const numberX = startX + labelWidth;
 
-            const layoutStartX = Math.round(slotCenterX - (combinedWidth / 2));
-            const layoutBoldX = Math.round(layoutStartX + preciseWidthBefore);
+  // Counter expression
+  const targetVal = parseInt(boldText, 10);
+  let textExpression;
+  if (!isNaN(targetVal)) {
+    const counterDur = 0.8;
+    textExpression = `'%{eif\\:trunc(clip((t-${tTextIn})*${targetVal}/${counterDur}\\,0\\,${targetVal}))\\:d}'`;
+  } else {
+    textExpression = quoteFilterText(boldText);
+  }
 
-            filters.push(
-              `[${currentPf}]drawtext=text=${quoteFilterText(itemLine.text)}${fa}:` +
-              `x=${layoutStartX}:y=${currentY}:` +
-              `fontsize=${TEXT_FONT}:fontcolor=white:borderw=2:bordercolor=black:` +
-              `enable='between(t,${tTextIn},${tTextOut})'[${tagLabel}]`
-            );
+  // 2. Draw label ("Soldier Numbers: ")
+  filters.push(
+    `[${currentPf}]drawtext=text=${quoteFilterText(labelText)}${fa}:` +
+    `x=${startX}:y=${currentY}:` +
+    `fontsize=${TEXT_FONT}:fontcolor=white:borderw=2:bordercolor=black:` +
+    `enable='between(t,${tTextIn},${tTextOut})'[${tagLabel}]`
+  );
 
-            const targetVal = parseInt(itemLine.boldText, 10);
-            let textExpression;
-            if (!isNaN(targetVal)) {
-              const counterDur = 0.8;
-              textExpression = `'%{eif\\:trunc(clip((t-${tTextIn})*${targetVal}/${counterDur}\\,0\\,${targetVal}))\\:d}'`;
-            } else {
-              textExpression = quoteFilterText(itemLine.boldText);
-            }
+  // 3. Draw dynamic counter ("10000") at fixed offset past the label
+  filters.push(
+    `[${tagLabel}]drawtext=text=${textExpression}${fa}:` +
+    `x=${numberX}:y=${currentY}:` +
+    `fontsize=${TEXT_FONT + 2}:fontcolor=0xFFD700:borderw=3:bordercolor=black:` +
+    `enable='between(t,${tTextIn},${tTextOut})'[${tagBold}]`
+  );
 
-            filters.push(
-              `[${tagLabel}]drawtext=text=${textExpression}${fa}:` +
-              `x=${layoutBoldX}:y=${currentY}:` +
-              `fontsize=${TEXT_FONT + 2}:fontcolor=0xFFD700:borderw=3:bordercolor=black:` +
-              `enable='between(t,${tTextIn},${tTextOut})'[${tagBold}]`
-            );
-            currentPf = tagBold;
+  currentPf = tagBold;
       } else if (itemLine.type === 'splitSurvival') {
             const val = itemLine.valNum;
             let valColor = "white";
