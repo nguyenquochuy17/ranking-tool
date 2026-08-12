@@ -5,6 +5,34 @@ const fs = require("fs");
 
 ffmpeg.setFfmpegPath(ffmpegStatic);
 
+const opentype = require('opentype.js');
+
+let font;
+try {
+  // Dynamically resolve Windows Fonts path
+  const winDir = process.env.WINDIR || 'C:\\Windows';
+  const fontPath = path.join(winDir, 'Fonts', 'arialbd.ttf');
+
+  // Read file to buffer and parse arraybuffer safely
+  const fileBuffer = fs.readFileSync(fontPath);
+  const arrayBuffer = fileBuffer.buffer.slice(
+    fileBuffer.byteOffset, 
+    fileBuffer.byteOffset + fileBuffer.byteLength
+  );
+  font = opentype.parse(arrayBuffer);
+  console.log('Successfully loaded Arial Bold font metrics.');
+} catch (err) {
+  console.warn('Failed to load system font file:', err.message);
+}
+
+function getExactTextWidth(text, fontSize) {
+  if (font && typeof font.getAdvanceWidth === 'function') {
+    return Math.ceil(font.getAdvanceWidth(text, fontSize));
+  }
+  // Safe emergency fallback estimation if font file is unreadable
+  return Math.ceil(text.length * fontSize * 0.55);
+}
+
 function splitHtmlTags(str) {
   // Matches text BEFORE <b>, the text INSIDE <b></b>, and everything AFTER </b>
   const match = str.match(/^([\s\S]*?)<b>([\s\S]*?)<\/b>([\s\S]*)$/i);
@@ -320,26 +348,90 @@ function render(data, output) {
         );
         pf = numTag;
       });
+// ── Title (????? -> Slide-Down Reveal + Longer Firework Burst) ──
+{
+  const origTitleText = fittedTitle;
+  const scrambleText = "?????";
 
-      // ── Title ────────────────────────────────────────────────────────
-      {
-        const { filterStrs, lastTag } = multilineCentered({
-          inputTag: pf,
-          text: fittedTitle,
-          fa,
-          fontSize: RBOX_TITLE_FONT,
-          fontcolor: "#FFD700",
-          borderw: 2,
-          centerX: RBOX_CENTER_X,
-          marginLeft: RBOX_TEXT_MARGIN,
-          startY: RBOX_TITLE_Y,
-          lineHeight: titleLineHeight,
-          enableExpr: `between(t,${tTextIn},${tBoxOut})`,
-          tagPrefix: `rboxTitle${idx}_`,
-        });
-        filters.push(...filterStrs);
-        pf = lastTag;
-      }
+  // Phase 1: Display "?????" in default Gold before image drops
+  const { filterStrs: scrambleFilters, lastTag: pfScramble } = multilineCentered({
+    inputTag: pf,
+    text: scrambleText,
+    fa,
+    fontSize: RBOX_TITLE_FONT,
+    fontcolor: "#FFD700",
+    borderw: 2,
+    centerX: RBOX_CENTER_X,
+    marginLeft: RBOX_TEXT_MARGIN,
+    startY: RBOX_TITLE_Y,
+    lineHeight: titleLineHeight,
+    enableExpr: `between(t,${tTextIn},${tOrigIn})`,
+    tagPrefix: `rboxTitleQ_${idx}_`,
+  });
+  filters.push(...scrambleFilters);
+  pf = pfScramble;
+
+  // Phase 2: Real Title reveals in default Gold and slides down from above
+  const { filterStrs: realFilters, lastTag: pfReal } = multilineCentered({
+    inputTag: pf,
+    text: origTitleText,
+    fa,
+    fontSize: RBOX_TITLE_FONT,
+    fontcolor: "#FFD700",
+    borderw: 2,
+    centerX: RBOX_CENTER_X,
+    marginLeft: RBOX_TEXT_MARGIN,
+    startY: RBOX_TITLE_Y,
+    lineHeight: titleLineHeight,
+    enableExpr: `between(t,${tOrigIn},${tBoxOut})`,
+    tagPrefix: `rboxTitleReal_${idx}_`,
+  });
+
+  // Inject 0.3s Slide-Down Motion (drops 35px into position at tOrigIn)
+  const slideDur = 0.3;
+  const slideDist = 35;
+
+  const animatedRealFilters = realFilters.map(f => {
+    return f.replace(/:y=(\d+):/, (match, origYStr) => {
+      const origY = Number(origYStr);
+      const startY = origY - slideDist;
+      return `:y='if(lt(t\\,${tOrigIn + slideDur})\\,${startY}+${slideDist}*((t-${tOrigIn})/${slideDur})\\,${origY})':`;
+    });
+  });
+
+  filters.push(...animatedRealFilters);
+  pf = pfReal;
+
+  // Phase 3: Firework Sparkle Burst around Title
+  const tFirework = tOrigIn + slideDur;
+
+  // ⚡ CONTROL FIREWORK DURATION & RADIUS HERE:
+  const fwDur = 0.9;     // 👈 Duration in seconds (increased from 0.45 to 0.9s)
+  const numSparks = 8;
+  const fwRadiusX = 140; // 👈 Horizontal distance (increased to 140px for smoother movement)
+  const fwRadiusY = 75;  // 👈 Vertical distance (increased to 75px)
+
+  for (let i = 0; i < numSparks; i++) {
+    const angle = (i * 2 * Math.PI) / numSparks;
+    const dx = Math.round(Math.cos(angle) * fwRadiusX);
+    const dy = Math.round(Math.sin(angle) * fwRadiusY);
+    const sparkTag = `fwSpark_${idx}_${i}`;
+
+    const sparkChar = i % 2 === 0 ? "*" : "+";
+    const sparkColor = i % 2 === 0 ? "#FFFF00" : "#FFFFFF";
+
+    filters.push(
+      `[${pf}]drawtext=text='${sparkChar}':` +
+      `fontfile='C:/Windows/Fonts/arialbd.ttf':` +
+      `fontsize=38:fontcolor=${sparkColor}:borderw=2:bordercolor=#FF8C00:` +
+      `x='${RBOX_CENTER_X} + ${dx}*(t-${tFirework})/${fwDur}-text_w/2':` +
+      `y='${RBOX_TITLE_Y} + ${dy}*(t-${tFirework})/${fwDur}-text_h/2':` +
+      `alpha='clip(1-(t-${tFirework})/${fwDur}\\,0\\,1)':` +
+      `enable='between(t,${tFirework},${tFirework + fwDur})'[${sparkTag}]`
+    );
+    pf = sparkTag;
+  }
+}
 
       // ── Icon — hide off-screen when outside window (avoids enable= black frames) ──
       const iconYExpr =
@@ -430,46 +522,59 @@ function render(data, output) {
         allLines.forEach((itemLine, lineIdx) => {
           const lineTag = `nameLine${idx}_${lineIdx}`;
 
-          if (itemLine.type === 'boldPair') {
-          const tagLabel = `nameLabel${idx}`;
+         if (itemLine.type === 'boldPair') {
+  const tagLabel = `nameLabel${idx}`;
   const tagBold = `nameBold${idx}`;
 
-  const labelText = itemLine.text; // e.g. "Soldier Numbers: "
-  const boldText = itemLine.boldText; // e.g. "10000"
-  
-  // 1. Calculate realistic pixel widths
-  // Average standard font width is ~0.55 of font size per character; spaces are ~0.33
-  const spaces = (labelText.match(/ /g) || []).length;
-  const chars = labelText.length - spaces;
-  const labelWidth = Math.round((chars * TEXT_FONT * 0.55) + (spaces * TEXT_FONT * 0.33));
-  
-  // Estimate target width for counter to keep the combined string centered on screen
-  const counterWidth = Math.round(boldText.length * (TEXT_FONT + 2) * 0.6);
-  const totalWidth = labelWidth + counterWidth;
+  const rawLabel = itemLine.text;        // e.g. "Solider Number "
+  const rawBoldText = itemLine.boldText; // e.g. "1000+"
 
-  // Horizontal start position to keep label + counter centered
+  const displayLabel = rawLabel.trimEnd();
+
+  // 1. Get exact pixel width from the font file using opentype.js
+  const labelWidth = getExactTextWidth(displayLabel, TEXT_FONT);
+  const boldWidth = getExactTextWidth(rawBoldText, TEXT_FONT + 2);
+  const gapWidth = getExactTextWidth(' ', TEXT_FONT); // Exact width of 1 space
+
+  // 2. Exact component layout
+  const totalWidth = labelWidth + gapWidth + boldWidth;
   const startX = Math.round(slotCenterX - (totalWidth / 2));
-  const numberX = startX + labelWidth;
+  const numberX = startX + labelWidth + gapWidth;
 
-  // Counter expression
-  const targetVal = parseInt(boldText, 10);
+  // 3. Escape FFmpeg special characters
+  const escapeFFmpegText = (str) => {
+    return str
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "'\\''")
+      .replace(/:/g, '\\:')
+      .replace(/%/g, '%%');
+  };
+
+  const cleanBoldText = rawBoldText.trim().replace(/&plus;/g, '+').replace(/&#43;/g, '+');
+  const numMatch = cleanBoldText.match(/^([^\d]*)([\d,]+)(.*)$/);
+
   let textExpression;
-  if (!isNaN(targetVal)) {
+
+  if (numMatch) {
+    const prefix = escapeFFmpegText(numMatch[1] || "");
+    const targetVal = parseInt(numMatch[2].replace(/,/g, ''), 10);
+    const suffix = escapeFFmpegText(numMatch[3] || "");
     const counterDur = 0.8;
-    textExpression = `'%{eif\\:trunc(clip((t-${tTextIn})*${targetVal}/${counterDur}\\,0\\,${targetVal}))\\:d}'`;
+
+    textExpression = `'${prefix}%{eif\\:trunc(clip((t-${tTextIn})*${targetVal}/${counterDur}\\,0\\,${targetVal}))\\:d}${suffix}'`;
   } else {
-    textExpression = quoteFilterText(boldText);
+    textExpression = `'${escapeFFmpegText(rawBoldText)}'`;
   }
 
-  // 2. Draw label ("Soldier Numbers: ")
+  // 4. Draw Label ("Solider Number:")
   filters.push(
-    `[${currentPf}]drawtext=text=${quoteFilterText(labelText)}${fa}:` +
+    `[${currentPf}]drawtext=text='${escapeFFmpegText(displayLabel)}'${fa}:` +
     `x=${startX}:y=${currentY}:` +
     `fontsize=${TEXT_FONT}:fontcolor=white:borderw=2:bordercolor=black:` +
     `enable='between(t,${tTextIn},${tTextOut})'[${tagLabel}]`
   );
 
-  // 3. Draw dynamic counter ("10000") at fixed offset past the label
+  // 5. Draw Value ("1000+") starting exactly 1 space past label
   filters.push(
     `[${tagLabel}]drawtext=text=${textExpression}${fa}:` +
     `x=${numberX}:y=${currentY}:` +
@@ -478,6 +583,8 @@ function render(data, output) {
   );
 
   currentPf = tagBold;
+
+
       } else if (itemLine.type === 'splitSurvival') {
             const val = itemLine.valNum;
             let valColor = "white";
