@@ -478,7 +478,7 @@ function render(data, output) {
 
       if (parsedName) {
         const cleanBefore = parsedName.before.replace(/\\n/g, "");
-        const txtBold = escText(parsedName.boldText, 20);
+        const txtBold = escText(parsedName.boldText, 60);
         
         const normalizedAfter = parsedName.after.replace(/\\n/g, "\n");
         const afterLines = normalizedAfter
